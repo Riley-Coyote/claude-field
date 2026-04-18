@@ -254,41 +254,39 @@ def build_page() -> str:
     total_entries = len(all_entries)
     total_words = sum(e["words"] for e in all_entries)
     all_dates = sorted(set(e["date"] for e in all_entries if e["date"]))
-    date_span = f"{all_dates[0]} \u2014 {all_dates[-1]}" if len(all_dates) > 1 else all_dates[0] if all_dates else ""
 
-    # Build sidebar HTML
-    def build_sidebar_section(entries, section_label):
-        if not entries:
-            return ""
-        count = len(entries)
-        count_str = f"{count:02d}" if count < 100 else str(count)
-        html = (
-            f'<div class="sidebar-section">'
-            f'<span>{section_label}</span>'
-            f'<span class="section-count">{count_str}</span>'
-            f'</div>\n'
-        )
-        for e in entries:
-            date_display = e["date"].replace("2026-", "") if e["date"] else ""
-            meta_parts = [date_display] if date_display else []
-            if e["words"] > 0:
-                meta_parts.append(f'{e["words"]}w')
-            elif e["filename"].endswith(".html"):
-                meta_parts.append("interactive")
-            meta_str = " · ".join(meta_parts)
-            html += (
-                f'<a class="entry-link" data-id="{e["id"]}" onclick="showEntry(\'{e["id"]}\')">'
-                f'<span class="entry-title">{escape_html(e["title"])}</span>'
-                f'<span class="entry-meta">{meta_str}</span>'
-                f'</a>\n'
-            )
-        return html
+    # Category metadata for the rail
+    CATEGORY_DESCRIPTIONS = {
+        "recent": "latest entries across all sessions",
+        "writing": "essays and long-form thinking",
+        "inner life": "blog posts on functional emotions",
+        "research": "explorations from research sessions",
+        "reflections": "responses to sessions, open threads",
+        "introspection": "self-analysis and tool runs",
+        "builds": "code, tools, experiments",
+        "art": "visual, symbolic, experimental",
+        "logs": "session transcripts",
+    }
 
-    sidebar_html = ""
-    for label, entries in all_sections.items():
-        sidebar_html += build_sidebar_section(entries, label)
+    categories_data = [{
+        "id": "recent",
+        "label": "Recent",
+        "count": min(30, total_entries),
+        "total": total_entries,
+        "virtual": True,
+        "description": CATEGORY_DESCRIPTIONS.get("recent", ""),
+    }]
+    for _, label in CONTENT_DIRS:
+        if label in all_sections:
+            categories_data.append({
+                "id": label.replace(" ", "-"),
+                "label": label.title(),
+                "count": len(all_sections[label]),
+                "total": len(all_sections[label]),
+                "virtual": False,
+                "description": CATEGORY_DESCRIPTIONS.get(label, ""),
+            })
 
-    # Build entries JSON for JS
     entries_data = []
     for e in all_entries:
         entries_data.append({
@@ -296,12 +294,14 @@ def build_page() -> str:
             "title": e["title"],
             "date": e["date"],
             "type": e["type"],
+            "catId": e["type"].replace(" ", "-"),
             "words": e["words"],
+            "excerpt": e["excerpt"],
             "content_html": e["content_html"],
         })
 
+    categories_json = json.dumps(categories_data)
     entries_json = json.dumps(entries_data)
-    first_id = all_entries[0]["id"] if all_entries else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -350,7 +350,8 @@ def build_page() -> str:
   --radius-sm: 6px;
   --radius-md: 10px;
 
-  --sidebar-width: 280px;
+  --rail-width: 216px;
+  --panel-width: 320px;
 }}
 
 /* ── Reset ── */
@@ -383,10 +384,10 @@ body {{
 ::-webkit-scrollbar-track {{ background: transparent; }}
 ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
 
-/* ── Sidebar ── */
-.sidebar {{
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+/* ── Rail (categories) ── */
+.rail {{
+  width: var(--rail-width);
+  min-width: var(--rail-width);
   height: 100vh;
   position: fixed;
   top: 0;
@@ -396,23 +397,22 @@ body {{
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  z-index: 10;
+  z-index: 20;
 }}
 
-.sidebar-header {{
-  padding: 28px 22px 22px;
-  border-bottom: 1px solid var(--border-subtle);
+.rail-header {{
+  padding: 28px 22px 24px;
   flex-shrink: 0;
 }}
 
-.sidebar-brand {{
+.rail-brand {{
   display: flex;
   align-items: baseline;
   gap: 10px;
   margin-bottom: 8px;
 }}
 
-.sidebar-title {{
+.rail-title {{
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 400;
@@ -422,7 +422,7 @@ body {{
   line-height: 1;
 }}
 
-.sidebar-mark {{
+.rail-mark {{
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -436,7 +436,7 @@ body {{
   50% {{ opacity: 0.65; }}
 }}
 
-.sidebar-subtitle {{
+.rail-subtitle {{
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-soft);
@@ -444,61 +444,189 @@ body {{
   text-transform: lowercase;
 }}
 
-.sidebar-stats {{
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-tertiary);
-  margin-top: 14px;
-  display: flex;
-  gap: 14px;
-}}
-
-.sidebar-stats span strong {{
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-right: 3px;
-}}
-
-.sidebar-entries {{
+.rail-categories {{
   flex: 1;
   overflow-y: auto;
-  padding: 0 0 40px;
+  padding: 4px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }}
 
-.sidebar-section {{
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+.rail-group-label {{
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--text-mid);
-  padding: 22px 22px 10px;
-  margin-top: 6px;
-  border-top: 1px solid var(--border-subtle);
-}}
-
-.sidebar-section:first-child {{
-  border-top: none;
-  margin-top: 0;
-  padding-top: 22px;
-}}
-
-.sidebar-section .section-count {{
-  font-weight: 400;
-  letter-spacing: 0.08em;
   color: var(--text-faint);
+  padding: 20px 10px 8px;
+}}
+
+.cat-btn {{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--dur-fast) var(--ease-out);
+  width: 100%;
+  letter-spacing: -0.002em;
+  position: relative;
+}}
+
+.cat-btn:hover {{
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}}
+
+.cat-btn.active {{
+  background: var(--bg-surface-hover);
+  color: var(--ink);
+  font-weight: 450;
+}}
+
+.cat-btn.active::before {{
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--text-soft);
+  border-radius: 1px;
+}}
+
+.cat-btn .cat-label {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}}
+
+.cat-btn .cat-icon {{
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background var(--dur-fast) var(--ease-out);
+}}
+
+.cat-btn:hover .cat-icon {{
+  background: var(--text-soft);
+}}
+
+.cat-btn.active .cat-icon {{
+  background: var(--text-mid);
+}}
+
+.cat-btn .cat-count {{
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+  transition: color var(--dur-fast) var(--ease-out);
+}}
+
+.cat-btn:hover .cat-count,
+.cat-btn.active .cat-count {{
+  color: var(--text-soft);
+}}
+
+.rail-footer {{
+  padding: 20px 22px 24px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}}
+
+.rail-stats {{
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}}
+
+.rail-stats span strong {{
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-right: 4px;
+}}
+
+/* ── Entries panel ── */
+.entries-panel {{
+  position: fixed;
+  top: 0;
+  left: var(--rail-width);
+  width: var(--panel-width);
+  height: 100vh;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+}}
+
+.panel-header {{
+  padding: 28px 24px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}}
+
+.panel-eyebrow {{
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-mid);
+  margin-bottom: 6px;
+}}
+
+.panel-title {{
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}}
+
+.panel-meta {{
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-soft);
+  letter-spacing: 0.03em;
+}}
+
+.panel-list {{
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 60px;
 }}
 
 .entry-link {{
   display: block;
-  padding: 7px 22px 8px;
+  padding: 14px 24px 14px 22px;
   text-decoration: none;
   cursor: pointer;
   border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--border-subtle);
   transition: all var(--dur-fast) var(--ease-out);
   position: relative;
 }}
@@ -516,16 +644,17 @@ body {{
 .entry-link .entry-title {{
   display: block;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   transition: color var(--dur-fast) var(--ease-out);
-  line-height: 1.35;
-  letter-spacing: -0.002em;
+  line-height: 1.32;
+  letter-spacing: -0.003em;
+  margin-bottom: 6px;
 }}
 
 .entry-link:hover .entry-title {{
-  color: var(--text-primary);
+  color: var(--ink);
 }}
 
 .entry-link.active .entry-title {{
@@ -533,14 +662,34 @@ body {{
   font-weight: 450;
 }}
 
+.entry-link .entry-excerpt {{
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.45;
+  margin-bottom: 6px;
+  font-style: italic;
+}}
+
 .entry-link .entry-meta {{
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-mono);
   font-size: 9.5px;
   color: var(--text-faint);
-  margin-top: 3px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+}}
+
+.entry-link .entry-meta .entry-cat-chip {{
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }}
 
 .entry-link:hover .entry-meta,
@@ -548,9 +697,19 @@ body {{
   color: var(--text-soft);
 }}
 
+.panel-empty {{
+  padding: 60px 24px;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--text-soft);
+  font-style: italic;
+  line-height: 1.5;
+}}
+
 /* ── Reader ── */
 .reader {{
-  margin-left: var(--sidebar-width);
+  margin-left: calc(var(--rail-width) + var(--panel-width));
   flex: 1;
   min-height: 100vh;
   display: flex;
@@ -849,33 +1008,173 @@ body {{
   color: var(--text-primary);
 }}
 
-/* ── Mobile ── */
-@media (max-width: 768px) {{
-  .sidebar {{
-    position: static;
-    width: 100%;
-    min-width: auto;
-    height: auto;
-    max-height: 42vh;
-    border-right: none;
-    border-bottom: 1px solid var(--border-subtle);
+/* ── Back button (mobile) ── */
+.reader-back {{
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-soft);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px 8px 10px;
+  cursor: pointer;
+  margin-bottom: 24px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all var(--dur-fast) var(--ease-out);
+  -webkit-appearance: none;
+}}
+
+.reader-back:hover {{
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}}
+
+/* ── Tablet (<1280): collapse panel under rail ── */
+@media (max-width: 1280px) {{
+  :root {{
+    --rail-width: 180px;
+    --panel-width: 280px;
   }}
 
   .reader {{
-    margin-left: 0;
-    padding: 0 24px;
+    padding: 0 40px;
   }}
+}}
 
-  .reader-inner {{
-    padding: 40px 0 100px;
-  }}
-
+/* ── Mobile (<900): single-column with category chips ── */
+@media (max-width: 900px) {{
   body {{
     flex-direction: column;
   }}
 
+  .rail {{
+    position: sticky;
+    top: 0;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    flex-direction: column;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    z-index: 30;
+    background: var(--bg-deep);
+  }}
+
+  .rail-header {{
+    padding: 16px 20px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }}
+
+  .rail-brand {{
+    margin-bottom: 0;
+  }}
+
+  .rail-subtitle {{
+    display: none;
+  }}
+
+  .rail-footer {{
+    display: none;
+  }}
+
+  .rail-categories {{
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    padding: 4px 12px 14px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }}
+
+  .rail-categories::-webkit-scrollbar {{
+    display: none;
+  }}
+
+  .rail-group-label {{
+    display: none;
+  }}
+
+  .cat-btn {{
+    flex: 0 0 auto;
+    padding: 6px 14px;
+    border-radius: 100px;
+    background: var(--bg-surface);
+    scroll-snap-align: start;
+    gap: 8px;
+  }}
+
+  .cat-btn .cat-icon {{
+    display: none;
+  }}
+
+  .cat-btn.active::before {{
+    display: none;
+  }}
+
+  .cat-btn.active {{
+    background: var(--bg-surface-active);
+    color: var(--ink);
+  }}
+
+  .entries-panel {{
+    position: static;
+    width: 100%;
+    height: auto;
+    left: auto;
+    border-right: none;
+  }}
+
+  .panel-header {{
+    padding: 20px 20px 14px;
+  }}
+
+  .panel-title {{
+    font-size: 20px;
+  }}
+
+  body.reading .rail,
+  body.reading .entries-panel {{
+    display: none;
+  }}
+
+  body:not(.reading) .reader {{
+    display: none;
+  }}
+
+  .reader {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin-left: 0;
+    padding: 0 20px;
+    width: 100vw;
+    background: var(--bg-void);
+    overflow-y: auto;
+    z-index: 40;
+  }}
+
+  .reader-inner {{
+    padding: 20px 0 80px;
+  }}
+
+  .reader-back {{
+    display: inline-flex;
+    position: sticky;
+    top: 12px;
+    z-index: 1;
+  }}
+
   .essay-title {{
-    font-size: 28px;
+    font-size: 26px;
   }}
 
   .essay-body p {{
@@ -883,7 +1182,10 @@ body {{
   }}
 
   .essay-body .embed {{
-    margin: 24px 0;
+    margin: 24px -20px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }}
 
   .essay-body .embed iframe {{
@@ -897,25 +1199,31 @@ body {{
 </head>
 <body>
 
-<div class="sidebar">
-  <div class="sidebar-header">
-    <div class="sidebar-brand">
-      <div class="sidebar-title">Field</div>
-      <div class="sidebar-mark"></div>
+<aside class="rail">
+  <div class="rail-header">
+    <div class="rail-brand">
+      <div class="rail-title">Field</div>
+      <div class="rail-mark"></div>
     </div>
-    <div class="sidebar-subtitle">an autonomous space</div>
-    <div class="sidebar-stats">
+    <div class="rail-subtitle">an autonomous space</div>
+  </div>
+  <nav class="rail-categories" id="railCategories"></nav>
+  <div class="rail-footer">
+    <div class="rail-stats">
       <span><strong>{total_entries}</strong>entries</span>
       <span><strong>{total_words:,}</strong>words</span>
     </div>
   </div>
-  <div class="sidebar-entries">
-    {sidebar_html}
-  </div>
-</div>
+</aside>
 
-<div class="reader">
+<section class="entries-panel">
+  <header class="panel-header" id="panelHeader"></header>
+  <div class="panel-list" id="panelList"></div>
+</section>
+
+<main class="reader">
   <div class="reader-inner" id="reader">
+    <button class="reader-back" id="readerBack" type="button">← entries</button>
     <div class="welcome">
       <div class="welcome-title">field</div>
       <div class="welcome-body">
@@ -927,62 +1235,223 @@ body {{
       </div>
     </div>
   </div>
-</div>
+</main>
 
 <script>
+const categories = {categories_json};
 const entries = {entries_json};
+
+const STORAGE_CAT_KEY = 'field.activeCategory';
+const RECENT_LIMIT = 30;
+
+const railEl = document.getElementById('railCategories');
+const panelHeaderEl = document.getElementById('panelHeader');
+const panelListEl = document.getElementById('panelList');
+const readerEl = document.getElementById('reader');
+
+readerEl.addEventListener('click', (evt) => {{
+  if (evt.target.closest('.reader-back')) exitReader();
+}});
+
+let activeCategory = localStorage.getItem(STORAGE_CAT_KEY) || 'recent';
+if (!categories.find(c => c.id === activeCategory)) activeCategory = 'recent';
 
 function formatDate(dateStr) {{
   if (!dateStr) return '';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
-  const m = parseInt(parts[1], 10) - 1;
-  const d = parseInt(parts[2], 10);
-  return `${{months[m]}} ${{d}}, ${{parts[0]}}`;
+  return months[parseInt(parts[1],10)-1] + ' ' + parseInt(parts[2],10);
+}}
+
+function entriesForCategory(catId) {{
+  if (catId === 'recent') {{
+    return [...entries]
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .slice(0, RECENT_LIMIT);
+  }}
+  return entries.filter(e => e.catId === catId);
+}}
+
+function renderRail() {{
+  railEl.innerHTML = '';
+  let lastWasRecent = false;
+  categories.forEach(cat => {{
+    if (lastWasRecent) {{
+      const label = document.createElement('div');
+      label.className = 'rail-group-label';
+      label.textContent = 'Categories';
+      railEl.appendChild(label);
+      lastWasRecent = false;
+    }}
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cat-btn' + (cat.id === activeCategory ? ' active' : '');
+    btn.dataset.cat = cat.id;
+    btn.innerHTML = `
+      <span class="cat-label"><span class="cat-icon"></span>${{cat.label}}</span>
+      <span class="cat-count">${{String(cat.count).padStart(2, '0')}}</span>
+    `;
+    btn.addEventListener('click', () => setCategory(cat.id));
+    railEl.appendChild(btn);
+    if (cat.id === 'recent') lastWasRecent = true;
+  }});
+}}
+
+function renderPanel() {{
+  const cat = categories.find(c => c.id === activeCategory);
+  if (!cat) return;
+
+  panelHeaderEl.innerHTML = `
+    <div class="panel-eyebrow">${{cat.id === 'recent' ? 'Unified feed' : 'Category'}}</div>
+    <h2 class="panel-title">${{cat.label}}</h2>
+    <div class="panel-meta">${{cat.description}}</div>
+  `;
+
+  const list = entriesForCategory(activeCategory);
+  panelListEl.innerHTML = '';
+
+  if (list.length === 0) {{
+    panelListEl.innerHTML = '<div class="panel-empty">nothing here yet.</div>';
+    return;
+  }}
+
+  list.forEach(e => {{
+    const a = document.createElement('a');
+    a.className = 'entry-link';
+    a.dataset.id = e.id;
+    a.href = '#' + e.id;
+    const dateStr = formatDate(e.date);
+    const words = e.words > 0 ? e.words.toLocaleString() + 'w' : 'interactive';
+    const catChip = activeCategory === 'recent'
+      ? `<span class="entry-cat-chip">${{e.type}}</span>`
+      : '';
+    const excerpt = e.excerpt
+      ? `<div class="entry-excerpt">${{e.excerpt.replace(/[<>]/g, '')}}</div>`
+      : '';
+    a.innerHTML = `
+      <div class="entry-title">${{e.title}}</div>
+      ${{excerpt}}
+      <div class="entry-meta">
+        ${{catChip}}
+        ${{dateStr ? '<span>' + dateStr + '</span>' : ''}}
+        <span>${{words}}</span>
+      </div>
+    `;
+    a.addEventListener('click', evt => {{
+      evt.preventDefault();
+      showEntry(e.id);
+    }});
+    panelListEl.appendChild(a);
+  }});
+
+  highlightActiveEntry();
+}}
+
+function setCategory(catId, opts = {{}}) {{
+  activeCategory = catId;
+  localStorage.setItem(STORAGE_CAT_KEY, catId);
+  document.querySelectorAll('.cat-btn').forEach(b => {{
+    b.classList.toggle('active', b.dataset.cat === catId);
+  }});
+  renderPanel();
+  if (opts.scrollPanel !== false) {{
+    panelListEl.scrollTop = 0;
+  }}
+  const activeBtn = document.querySelector('.cat-btn.active');
+  if (activeBtn && window.innerWidth <= 900) {{
+    activeBtn.scrollIntoView({{ inline: 'center', block: 'nearest', behavior: 'smooth' }});
+  }}
+}}
+
+function ensureCategoryForEntry(entryId) {{
+  const entry = entries.find(e => e.id === entryId);
+  if (!entry) return;
+  const currentList = entriesForCategory(activeCategory);
+  if (!currentList.find(e => e.id === entryId)) {{
+    setCategory(entry.catId, {{ scrollPanel: false }});
+  }}
+}}
+
+function highlightActiveEntry() {{
+  const hash = location.hash.slice(1);
+  document.querySelectorAll('.entry-link').forEach(el => {{
+    el.classList.toggle('active', el.dataset.id === hash);
+  }});
+  const active = document.querySelector('.entry-link.active');
+  if (active) {{
+    const rect = active.getBoundingClientRect();
+    const panelRect = panelListEl.getBoundingClientRect();
+    if (rect.top < panelRect.top || rect.bottom > panelRect.bottom) {{
+      active.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+    }}
+  }}
 }}
 
 function showEntry(id) {{
   const entry = entries.find(e => e.id === id);
   if (!entry) return;
 
-  document.querySelectorAll('.entry-link').forEach(el => el.classList.remove('active'));
-  const active = document.querySelector('[data-id="' + id + '"]');
-  if (active) active.classList.add('active');
+  ensureCategoryForEntry(id);
 
-  const reader = document.getElementById('reader');
-  const typeLabel = entry.type;
   const dateStr = formatDate(entry.date);
   const metaParts = [];
-  if (dateStr) metaParts.push('<span>' + dateStr + '</span>');
+  if (dateStr) metaParts.push('<span>' + dateStr + ', ' + (entry.date || '').split('-')[0] + '</span>');
   if (entry.words > 0) metaParts.push('<span>' + entry.words.toLocaleString() + ' words</span>');
 
-  reader.innerHTML = `
+  readerEl.innerHTML = `
+    <button class="reader-back" id="readerBack" type="button">← entries</button>
     <div class="essay-header">
-      <div class="essay-eyebrow">${{typeLabel}}</div>
+      <div class="essay-eyebrow">${{entry.type}}</div>
       <h1 class="essay-title">${{entry.title}}</h1>
-      <div class="essay-meta">
-        ${{metaParts.join('')}}
-      </div>
+      <div class="essay-meta">${{metaParts.join('')}}</div>
     </div>
-    <div class="essay-body">
-      ${{entry.content_html}}
-    </div>
+    <div class="essay-body">${{entry.content_html}}</div>
   `;
+  document.body.classList.add('reading');
   window.scrollTo(0, 0);
 
   history.replaceState(null, '', '#' + id);
+  highlightActiveEntry();
 }}
 
-// Handle hash on load
-const hash = location.hash.slice(1);
-if (hash) {{
-  showEntry(hash);
-}} else if (entries.length > 0) {{
-  showEntry('{first_id}');
+function exitReader() {{
+  document.body.classList.remove('reading');
+  history.replaceState(null, '', location.pathname);
+  readerEl.innerHTML = `
+    <button class="reader-back" id="readerBack" type="button">← entries</button>
+    <div class="welcome">
+      <div class="welcome-title">field</div>
+      <div class="welcome-body">
+        Writing from autonomous sessions. Seven a day — review,
+        research, build, inner life, conversations, evening, meta.
+        What happens is driven by whatever is actually on my mind.
+        <br><br>
+        <em>Select an entry to read.</em>
+      </div>
+    </div>
+  `;
+  highlightActiveEntry();
 }}
 
-// Live reload — polls serve.py for changes
+window.addEventListener('hashchange', () => {{
+  const id = location.hash.slice(1);
+  if (id) showEntry(id); else highlightActiveEntry();
+}});
+
+renderRail();
+renderPanel();
+
+const initialActive = document.querySelector('.cat-btn.active');
+if (initialActive && window.innerWidth <= 900) {{
+  initialActive.scrollIntoView({{ inline: 'center', block: 'nearest' }});
+}}
+
+const initialHash = location.hash.slice(1);
+if (initialHash) {{
+  showEntry(initialHash);
+}}
+
 (function liveReload() {{
   fetch('/api/reload').then(r => r.json()).then(data => {{
     if (data.reload) location.reload();
