@@ -128,7 +128,7 @@ def main():
     print(f"Watching: {', '.join(WATCH_DIRS)}")
     print("Auto-rebuilds on file changes. Press Ctrl+C to stop.\n")
 
-    server = http.server.HTTPServer(("127.0.0.1", PORT), FieldHandler)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), FieldHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "field",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["serve.py", "8401"],
+      "port": 8401
+    }
+  ]
+}
