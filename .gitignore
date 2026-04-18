@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Operational noise
+logs/
+.playwright-mcp/
+.claude/scheduled_tasks.lock
+
+# Environment
+.env
+.env.local
+*.key

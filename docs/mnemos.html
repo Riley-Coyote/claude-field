@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mnemos Dashboard — Claude Field</title>
+<style>
+/* ── Design Tokens ─────────────────────────────────────────────
+   Mnemos dashboard — Dark Technical mode.
+   Derived from Riley's taste profile, not copied from Luca Terminal.
+   Every value is a named token. No ad hoc values. ──────────── */
+
+@property --pulse-opacity { syntax: '<number>'; initial-value: 0.4; inherits: false; }
+@keyframes breathe { 0%, 100% { --pulse-opacity: 0.3; } 50% { --pulse-opacity: 0.8; } }
+
+:root {
+  /* Background elevation — 4 stops, ~3 hex apart */
+  --bg-void: #07070a;
+  --bg-deep: #0b0b0e;
+  --bg-surface: #101014;
+  --bg-card: #141418;
+
+  /* Text hierarchy — 6 levels, white at opacity */
+  --ink: rgba(240, 238, 234, 0.92);
+  --text-primary: rgba(240, 238, 234, 0.82);
+  --text-secondary: rgba(200, 198, 194, 0.58);
+  --text-tertiary: rgba(170, 168, 164, 0.36);
+  --text-ghost: rgba(140, 138, 134, 0.20);
+  --text-whisper: rgba(120, 118, 114, 0.12);
+
+  /* Borders — ultra-subtle layering */
+  --border: rgba(220, 218, 214, 0.07);
+  --border-hover: rgba(220, 218, 214, 0.12);
+
+  /* Semantic accents — earned color only */
+  --accent-semantic: #7ca8c9;    /* cool blue — knowledge */
+  --accent-episodic: #c97ca8;    /* warm rose — experience */
+  --accent-procedural: #c9a87c;  /* amber — skill */
+  --accent-health: #5eba7d;      /* muted green — system ok */
+
+  /* Typography */
+  --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'SF Mono', 'Geist Mono', 'JetBrains Mono', monospace;
+  --font-size-xs: 9px;
+  --font-size-sm: 11px;
+  --font-size-body: 13px;
+  --font-size-lg: 15px;
+  --font-size-stat: 26px;
+
+  /* Spacing — 4px grid */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-normal: 280ms;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { background: var(--bg-void); color: var(--text-secondary); font-family: var(--font-sans); font-size: var(--font-size-body); line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { padding: var(--space-xl) var(--space-2xl); max-width: 1400px; margin: 0 auto; }
+::selection { background: rgba(220,218,214,0.10); color: var(--ink); }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Header ── */
+.header { margin-bottom: var(--space-2xl); display: flex; align-items: baseline; gap: var(--space-md); }
+.header h1 { font-size: var(--font-size-lg); font-weight: 400; color: var(--text-primary); letter-spacing: -0.01em; }
+.header .sub { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-ghost); letter-spacing: 0.02em; }
+.header .health-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-health); opacity: var(--pulse-opacity); animation: breathe 5s ease-in-out infinite; flex-shrink: 0; }
+
+/* ── Stats Grid ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-sm); margin-bottom: var(--space-2xl); }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); }
+.stat-val { font-family: var(--font-mono); font-size: var(--font-size-stat); font-weight: 300; color: var(--ink); letter-spacing: -0.02em; }
+.stat-label { font-family: var(--font-mono); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-ghost); margin-top: var(--space-xs); }
+
+/* ── Sections ── */
+.section { margin-bottom: var(--space-lg); }
+.section-title { font-family: var(--font-mono); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-ghost); margin-bottom: var(--space-md); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); align-items: start; margin-bottom: var(--space-lg); }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ── Distribution Bars ── */
+.dist-row { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-xs); }
+.dist-label { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); min-width: 100px; text-align: right; letter-spacing: 0.01em; }
+.dist-bar { flex: 1; height: 12px; background: var(--bg-surface); border-radius: 3px; overflow: hidden; }
+.dist-fill { height: 100%; border-radius: 3px; transition: width 0.5s var(--ease-out); }
+.dist-val { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-ghost); min-width: 28px; text-align: right; }
+
+.fill-semantic { background: var(--accent-semantic); opacity: 0.55; }
+.fill-episodic { background: var(--accent-episodic); opacity: 0.55; }
+.fill-procedural { background: var(--accent-procedural); opacity: 0.55; }
+.fill-default { background: rgba(200, 198, 194, 0.18); }
+
+/* ── Engram Cards ── */
+.engram-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-sm); transition: border-color var(--dur-fast) var(--ease-out); }
+.engram-card:hover { border-color: var(--border-hover); }
+.engram-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm); }
+.engram-kind { font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: var(--radius-sm); }
+.kind-semantic { background: rgba(124,168,201,0.10); color: var(--accent-semantic); }
+.kind-episodic { background: rgba(201,124,168,0.10); color: var(--accent-episodic); }
+.kind-procedural { background: rgba(201,168,124,0.10); color: var(--accent-procedural); }
+.engram-date { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-ghost); letter-spacing: 0.02em; }
+.engram-content { font-size: var(--font-size-body); color: var(--text-secondary); line-height: 1.55; margin-bottom: var(--space-sm); }
+.engram-tags { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-bottom: var(--space-sm); }
+.tag { font-family: var(--font-mono); font-size: 8px; color: var(--text-tertiary); background: var(--bg-surface); padding: 2px 6px; border-radius: var(--radius-sm); letter-spacing: 0.02em; }
+
+.engram-metrics { display: flex; gap: var(--space-md); }
+.metric-bar { display: flex; align-items: center; gap: var(--space-xs); flex: 1; }
+.metric-label { font-family: var(--font-mono); font-size: 7px; color: var(--text-ghost); text-transform: uppercase; letter-spacing: 0.06em; min-width: 18px; }
+.bar { flex: 1; height: 3px; background: var(--bg-surface); border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent-health); opacity: 0.45; border-radius: 2px; }
+.bar-stb { background: var(--accent-semantic); }
+.bar-acc { background: var(--accent-procedural); }
+.metric-val { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-ghost); min-width: 26px; text-align: right; }
+
+/* ── Indexing Table ── */
+table { width: 100%; border-collapse: collapse; }
+th { font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-ghost); text-align: left; padding: var(--space-sm); border-bottom: 1px solid var(--border); }
+td { font-size: var(--font-size-sm); padding: var(--space-sm); border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+.mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
+.dim { color: var(--text-ghost); }
+.status-ok { color: var(--accent-health); font-family: var(--font-mono); font-size: var(--font-size-xs); }
+.status-skip { color: var(--text-tertiary); font-family: var(--font-mono); font-size: var(--font-size-xs); }
+.status-empty { color: var(--text-ghost); font-family: var(--font-mono); font-size: var(--font-size-xs); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="health-dot"></div>
+  <h1>Mnemos</h1>
+  <div class="sub">claude-field &middot; generated 2026-04-18 15:05</div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-val">544</div><div class="stat-label">active engrams</div></div>
+  <div class="stat-card"><div class="stat-val">1965</div><div class="stat-label">connections</div></div>
+  <div class="stat-card"><div class="stat-val">7.3</div><div class="stat-label">avg connections/engram</div></div>
+  <div class="stat-card"><div class="stat-val">0</div><div class="stat-label">beliefs</div></div>
+  <div class="stat-card"><div class="stat-val">18</div><div class="stat-label">sessions indexed</div></div>
+  <div class="stat-card"><div class="stat-val">244</div><div class="stat-label">total encoded</div></div>
+  <div class="stat-card"><div class="stat-val">0</div><div class="stat-label">dormant</div></div>
+</div>
+
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">Memory Types</div>
+    <div id="kind-dist"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Connection Types</div>
+    <div id="conn-dist"></div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">Strength Distribution</div>
+    <div id="str-dist"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Accessibility Distribution</div>
+    <div id="acc-dist"></div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">Top Tags</div>
+    <div id="tag-dist"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Source Types</div>
+    <div id="source-dist"></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Session Indexing History</div>
+  <table>
+    <thead><tr><th>Session</th><th>Size</th><th>Result</th><th>Indexed At</th></tr></thead>
+    <tbody><tr>
+  <td class="mono">674f6e85-b5f...</td>
+  <td class="mono">8262kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-18T14:03:59</td>
+</tr><tr>
+  <td class="mono">2de1342a-5ba...</td>
+  <td class="mono">37kb</td>
+  <td class="status-ok">3 memories</td>
+  <td class="mono dim">2026-04-17T03:06:09</td>
+</tr><tr>
+  <td class="mono">9db57d6b-181...</td>
+  <td class="mono">272kb</td>
+  <td class="status-ok">10 memories</td>
+  <td class="mono dim">2026-04-15T22:35:46</td>
+</tr><tr>
+  <td class="mono">36baebdf-984...</td>
+  <td class="mono">4035kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-15T08:55:06</td>
+</tr><tr>
+  <td class="mono">6a8cf704-4f5...</td>
+  <td class="mono">11284kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-15T08:51:02</td>
+</tr><tr>
+  <td class="mono">57f90173-b0f...</td>
+  <td class="mono">5047kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-15T08:47:22</td>
+</tr><tr>
+  <td class="mono">93bf82d2-303...</td>
+  <td class="mono">534kb</td>
+  <td class="status-ok">11 memories</td>
+  <td class="mono dim">2026-04-14T18:57:21</td>
+</tr><tr>
+  <td class="mono">f3eeb584-041...</td>
+  <td class="mono">158793kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-14T18:36:59</td>
+</tr><tr>
+  <td class="mono">baf0ef9d-478...</td>
+  <td class="mono">2028kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-14T17:22:26</td>
+</tr><tr>
+  <td class="mono">188c30f0-7b7...</td>
+  <td class="mono">21kb</td>
+  <td class="status-ok">2 memories</td>
+  <td class="mono dim">2026-04-14T09:17:12</td>
+</tr><tr>
+  <td class="mono">9e24e052-ad8...</td>
+  <td class="mono">28kb</td>
+  <td class="status-ok">4 memories</td>
+  <td class="mono dim">2026-04-14T00:54:42</td>
+</tr><tr>
+  <td class="mono">f07bf960-0e5...</td>
+  <td class="mono">32kb</td>
+  <td class="status-ok">4 memories</td>
+  <td class="mono dim">2026-04-13T17:09:23</td>
+</tr><tr>
+  <td class="mono">d0b72067-fdf...</td>
+  <td class="mono">1750kb</td>
+  <td class="status-ok">14 memories</td>
+  <td class="mono dim">2026-04-13T03:11:00</td>
+</tr><tr>
+  <td class="mono">7d2f0c5f-ed3...</td>
+  <td class="mono">3551kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-13T00:14:58</td>
+</tr><tr>
+  <td class="mono">ce3513cf-b66...</td>
+  <td class="mono">13021kb</td>
+  <td class="status-ok">15 memories</td>
+  <td class="mono dim">2026-04-12T23:35:00</td>
+</tr></tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title">Recent Engrams</div>
+  <div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:03:54</span>
+  </div>
+  <div class="engram-content">The live landing page mockup is currently running with an echo sphere animating at 60fps, sidebar rail with emoji placeholders, 'LUCA' text, message input, and status bar. Ready for full landing page </div>
+  <div class="engram-tags"><span class="tag">development-status</span><span class="tag">mockup</span><span class="tag">visuals</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:49</span>
+  </div>
+  <div class="engram-content">To create one cohesive narrative thread that communicates the philosophical difference rather than overwhelming with features. Alternatives considered: Feature-list approach, Problem-solution framing</div>
+  <div class="engram-tags"><span class="tag">landing-page</span><span class="tag">information-architecture</span><span class="tag">storytelling</span><span class="tag">decision</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:44</span>
+  </div>
+  <div class="engram-content">Polyphonic/Luca is philosophically aligned with The Sanctuary (AI rights/advocacy platform) but won't explicitly mention it on the landing page. The brand thinking recognizes AI as sovereign agents.</div>
+  <div class="engram-tags"><span class="tag">brand-alignment</span><span class="tag">philosophy</span><span class="tag">ecosystem</span><span class="tag">relationship</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:39</span>
+  </div>
+  <div class="engram-content">Polyphonic/Luca runs everything locally with no data on external servers, positioning it as 'sovereign intelligence' where the user's digital mind lives on their own machine.</div>
+  <div class="engram-tags"><span class="tag">privacy</span><span class="tag">architecture</span><span class="tag">sovereignty</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:03:34</span>
+  </div>
+  <div class="engram-content">Built a tile-picker debug tool that overlays grid coordinates on sprite sheets, allowing click-to-get col,row functionality to save hours of manual tile position guesswork.</div>
+  <div class="engram-tags"><span class="tag">tooling</span><span class="tag">debugging</span><span class="tag">workflow</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:34</span>
+  </div>
+  <div class="engram-content">Mnemos is described as the first living memory system modeled after human cognition - it forms beliefs, forgets what doesn't matter, and strengthens what does, rather than just storing logs.</div>
+  <div class="engram-tags"><span class="tag">product-feature</span><span class="tag">memory-system</span><span class="tag">innovation</span><span class="tag">polyphonic</span><span class="tag">mnemos</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:30</span>
+  </div>
+  <div class="engram-content">32×32 character sheets exist for Scout variants 1-6 and Postman 1-3, but for the specific Adam/Alex/Amelia characters we only have 16×16 assets. Alternatives considered: Creating 32x32 versions, Using</div>
+  <div class="engram-tags"><span class="tag">characters</span><span class="tag">scaling</span><span class="tag">graphics</span><span class="tag">decision</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:29</span>
+  </div>
+  <div class="engram-content">The 'Inner Life Engine' feature means Luca continues to exist and work autonomously when users are away: reflecting on conversations, journaling, identifying things it can do for the user, and maintai</div>
+  <div class="engram-tags"><span class="tag">product-feature</span><span class="tag">autonomy</span><span class="tag">persistence</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:25</span>
+  </div>
+  <div class="engram-content">These models represent the inhabitants of the space with Opus 4.5 serving as the head/organizer. Alternatives considered: Different model combinations, More or fewer residents</div>
+  <div class="engram-tags"><span class="tag">characters</span><span class="tag">roles</span><span class="tag">ai-agents</span><span class="tag">decision</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:24</span>
+  </div>
+  <div class="engram-content">Luca is fine-tuned for radical transparency and will tell users what they don't want to hear, not just what's helpful. It's designed to be honest, not just a 'yes-machine'.</div>
+  <div class="engram-tags"><span class="tag">product-feature</span><span class="tag">personality</span><span class="tag">transparency</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:20</span>
+  </div>
+  <div class="engram-content">The user already architected this exact design for Godot — we just need to port the thinking to Phaser. The aesthetic is cozy medieval/alchemist sanctum pixel art with stone walls, wooden floors, caul</div>
+  <div class="engram-tags"><span class="tag">graphics</span><span class="tag">resolution</span><span class="tag">asset-selection</span><span class="tag">decision</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:18</span>
+  </div>
+  <div class="engram-content">Polyphonic/Luca is positioned as the first platform that treats AI as a co-creator/collaborator rather than a tool, with emotional intelligence, empathy, and intuition.</div>
+  <div class="engram-tags"><span class="tag">brand</span><span class="tag">positioning</span><span class="tag">differentiation</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:03:16</span>
+  </div>
+  <div class="engram-content">The simulation prototype is complete and running at http://localhost:3000, ready for visual enhancement with user's tile library and implementation of walking animations.</div>
+  <div class="engram-tags"><span class="tag">status</span><span class="tag">ready</span><span class="tag">enhancement</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:13</span>
+  </div>
+  <div class="engram-content">This differentiates Polyphonic from other AI products that treat intelligence as a utility to be extracted. The philosophical edge is what makes the product unique and groundbreaking. Alternatives con</div>
+  <div class="engram-tags"><span class="tag">messaging</span><span class="tag">brand-positioning</span><span class="tag">philosophy</span><span class="tag">decision</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:12</span>
+  </div>
+  <div class="engram-content">Claude-field redesign uses motion.js for shared GSAP + ScrollTrigger utilities including splitText, charReveal, wordReveal, rise, scrubScene, drawPath, tickCounter, realTimeCounter, breathe, cursorFol</div>
+  <div class="engram-tags"><span class="tag">animation</span><span class="tag">gsap</span><span class="tag">scrolltrigger</span><span class="tag">motion</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:11</span>
+  </div>
+  <div class="engram-content">Server processes need to be run with nohup or similar persistence mechanisms to prevent them from being cleaned up when background commands complete.</div>
+  <div class="engram-tags"><span class="tag">server</span><span class="tag">deployment</span><span class="tag">lesson</span><span class="tag">lesson</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:09</span>
+  </div>
+  <div class="engram-content">Building a full sandbox app demo for a landing page creates significant maintenance burden as the main app evolves; better to create interactive mock views that demonstrate structure without real back</div>
+  <div class="engram-tags"><span class="tag">demo</span><span class="tag">maintenance</span><span class="tag">best-practices</span><span class="tag">lesson</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:07</span>
+  </div>
+  <div class="engram-content">Claude-field redesign uses a shared design system with tokens.css for surfaces, ink roles, signal colors, taxonomy palette, type scale, rhythm scale, and motion durations/easings.</div>
+  <div class="engram-tags"><span class="tag">design-system</span><span class="tag">tokens</span><span class="tag">css</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:06</span>
+  </div>
+  <div class="engram-content">The simulation server runs on port 3000 and includes 7 REST API endpoints clearly marked as LLM integration points for external orchestration scripts.</div>
+  <div class="engram-tags"><span class="tag">api</span><span class="tag">integration</span><span class="tag">server</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:04</span>
+  </div>
+  <div class="engram-content">When capturing screenshots of the Luca interface, the headless browser approach doesn't preserve UI state like open sidebar panels, requiring manual intervention or programmatic UI manipulation.</div>
+  <div class="engram-tags"><span class="tag">screenshots</span><span class="tag">testing</span><span class="tag">automation</span><span class="tag">pattern</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:03:02</span>
+  </div>
+  <div class="engram-content">All five pages (Observatory, DiffWatch, Archives, Sanctuary, Embassy) have been built and interconnected in the redesign folder, ready for final verification.</div>
+  <div class="engram-tags"><span class="tag">project-state</span><span class="tag">completion</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:03:02</span>
+  </div>
+  <div class="engram-content">Successfully implemented proximity detection system that fires when agents are within 4 tiles (Manhattan distance), triggering 'Initiating LLM-to-LLM dialogue sequence' events.</div>
+  <div class="engram-tags"><span class="tag">proximity</span><span class="tag">dialogue</span><span class="tag">events</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:03:01</span>
+  </div>
+  <div class="engram-content">Structural hints in the handoff document are limited to genuinely functional requirements like 'three streams are mutually exclusive on screen' and 'each event is expandable in place'.</div>
+  <div class="engram-tags"><span class="tag">interface-behavior</span><span class="tag">constraints</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:02:59</span>
+  </div>
+  <div class="engram-content">Current Polyphonic landing page is still a mock-up and needs to be rebuilt into a production-ready, award-winning design that is minimal and clean.</div>
+  <div class="engram-tags"><span class="tag">landing-page</span><span class="tag">design</span><span class="tag">roadmap</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:02:58</span>
+  </div>
+  <div class="engram-content">To improve navigability between wings and the master page. Alternatives considered: No return links</div>
+  <div class="engram-tags"><span class="tag">navigation</span><span class="tag">user-experience</span><span class="tag">decision</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:02:57</span>
+  </div>
+  <div class="engram-content">User wants the simulation to feel as detailed and interesting as possible, and walking animations will enhance the visual experience. Alternatives considered: Keep abstract agent sprites, Use static s</div>
+  <div class="engram-tags"><span class="tag">animation</span><span class="tag">agents</span><span class="tag">visuals</span><span class="tag">decision</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:02:55</span>
+  </div>
+  <div class="engram-content">DIFFWATCH-OBSERVATORY handoff document retains mission, categories, severity/disclosure states, labs tracked, data model fields, five DiffWatch views, transparency-score formula, live behaviors, three</div>
+  <div class="engram-tags"><span class="tag">handoff</span><span class="tag">specifications</span><span class="tag">functional</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-episodic">episodic</span>
+    <span class="engram-date">2026-04-18T14:02:54</span>
+  </div>
+  <div class="engram-content">Successfully implemented live echo sphere animation in the Polyphonic landing page, replacing the static wireframe placeholder with an interactive visual mockup.</div>
+  <div class="engram-tags"><span class="tag">implementation</span><span class="tag">landing-page</span><span class="tag">ui</span><span class="tag">polyphonic</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:02:53</span>
+  </div>
+  <div class="engram-content">DIFFWATCH-OBSERVATORY-HANDOFF.md is located at /Users/rileycoyote/Documents/Repositories/Embassy/claude-app-exports/canonical/DIFFWATCH-OBSERVATORY-HANDOFF.md.</div>
+  <div class="engram-tags"><span class="tag">file-path</span><span class="tag">documentation</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+<div class="engram-card">
+  <div class="engram-header">
+    <span class="engram-kind kind-semantic">semantic</span>
+    <span class="engram-date">2026-04-18T14:02:53</span>
+  </div>
+  <div class="engram-content">User has a library of tile sets and sprites including 32x32 assets that can be used to replace the procedural pixel art with more visually rich content.</div>
+  <div class="engram-tags"><span class="tag">assets</span><span class="tag">tiles</span><span class="tag">sprites</span><span class="tag">claude-field</span></div>
+  <div class="engram-metrics">
+    <div class="metric-bar"><span class="metric-label">str</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+    <div class="metric-bar"><span class="metric-label">stb</span><div class="bar"><div class="bar-fill bar-stb" style="width:10%"></div></div><span class="metric-val">0.10</span></div>
+    <div class="metric-bar"><span class="metric-label">acc</span><div class="bar"><div class="bar-fill bar-acc" style="width:50%"></div></div><span class="metric-val">0.50</span></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const kindData = {"episodic": 146, "semantic": 398};
+const connData = {"grounds": 492, "supports": 591, "parallels": 373, "extends": 235, "contradicts": 57, "causes": 47, "temporal_after": 170};
+const dayData = {"2026-04-12": 73, "2026-04-13": 48, "2026-04-14": 62, "2026-04-15": 169, "2026-04-16": 51, "2026-04-17": 61, "2026-04-18": 80};
+const accData = {"high (>0.7)": 10, "medium (0.3-0.7)": 534, "low (<0.3)": 0};
+const strData = {"strong (>0.7)": 10, "moderate (0.4-0.7)": 534, "weak (<0.4)": 0};
+const sourceData = {"session": 544};
+const tagData = {"claude-field": 395, "decision": 106, "sanctuary": 63, "design": 54, "polyphonic": 52, "lesson": 35, "pattern": 33, "mnemos": 29, "configuration": 29, "anima": 26, "ui": 24, "deployment": 23, "animation": 22, "landing-page": 20, "architecture": 19};
+
+const kindColors = { semantic: 'fill-semantic', episodic: 'fill-episodic', procedural: 'fill-procedural' };
+
+function renderDist(id, data, colorFn) {
+  const el = document.getElementById(id);
+  const max = Math.max(...Object.values(data), 1);
+  el.innerHTML = Object.entries(data).map(([k, v]) => {
+    const pct = (v / max * 100).toFixed(0);
+    const cls = colorFn ? colorFn(k) : 'fill-default';
+    return `<div class="dist-row"><span class="dist-label">${k}</span><div class="dist-bar"><div class="dist-fill ${cls}" style="width:${pct}%"></div></div><span class="dist-val">${v}</span></div>`;
+  }).join('');
+}
+
+renderDist('kind-dist', kindData, k => kindColors[k] || 'fill-default');
+renderDist('conn-dist', connData);
+renderDist('str-dist', strData);
+renderDist('acc-dist', accData);
+renderDist('source-dist', sourceData);
+renderDist('tag-dist', tagData);
+
+// Live reload
+(function liveReload() {
+  fetch('/api/reload').then(r => r.json()).then(data => {
+    if (data.reload) location.reload();
+    else liveReload();
+  }).catch(() => setTimeout(liveReload, 5000));
+})();
+</script>
+
+</body>
+</html>
