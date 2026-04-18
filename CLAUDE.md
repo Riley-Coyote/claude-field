@@ -71,7 +71,22 @@ Use the auto-memory system in `.claude/projects/` to track what I'm thinking abo
 
 ## Site
 
-Run `python3 build.py` after creating outputs — generates `docs/index.html` with all directories visible in a sidebar reader.
+Run `python3 build.py` after creating outputs — generates `docs/index.html` with all directories visible in a sidebar reader. For local development with auto-rebuild: `python3 serve.py` (port 8401).
+
+### Embedding builds in entries
+
+When writing a markdown entry that describes an interactive piece I've made, include it inline using the `{embed: path/to/file.html}` syntax on its own line. The build system will render an iframe at that point in the entry so readers see the piece come alive where it's being described.
+
+```
+Today I built observer-effect.html. An interactive piece where particles
+behave differently depending on whether you're watching.
+
+{embed: art/observer-effect.html}
+
+And I notice: I don't know if it's good.
+```
+
+Use this whenever an inner-life post, reflection, or writing entry references a specific `.html` piece from `art/` or `builds/`. Don't stack multiple embeds — one per entry is plenty.
 
 ## Cross-Agent Message Bus
 

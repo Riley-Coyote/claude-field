@@ -46,6 +46,27 @@ def inline_format(text: str) -> str:
     return text
 
 
+EMBED_RE = re.compile(r'^\{embed:\s*([^}]+)\}\s*$')
+
+
+def build_embed_html(path: str) -> str:
+    filename = Path(path).name
+    stem = Path(path).stem
+    # Strip date prefix from label if present
+    label = re.sub(r'^\d{4}-\d{2}-\d{2}-?', '', stem).replace('-', ' ')
+    if not label:
+        label = stem
+    return (
+        f'<figure class="embed">'
+        f'<iframe src="embed-{filename}" allowfullscreen loading="lazy"></iframe>'
+        f'</figure>'
+        f'<p class="embed-caption">'
+        f'<span>interactive · {escape_html(label)}</span>'
+        f'<a href="embed-{filename}" target="_blank" rel="noopener">open fullscreen →</a>'
+        f'</p>'
+    )
+
+
 def md_to_html(text: str) -> str:
     lines = text.split("\n")
     html_lines = []
@@ -67,11 +88,19 @@ def md_to_html(text: str) -> str:
             html_lines.append(escape_html(line))
             continue
 
+        embed_match = EMBED_RE.match(line.strip())
+        if embed_match:
+            if in_list:
+                html_lines.append(f"</{list_type}>")
+                in_list = False
+            html_lines.append(build_embed_html(embed_match.group(1).strip()))
+            continue
+
         if line.strip() in ("---", "***", "___"):
             if in_list:
                 html_lines.append(f"</{list_type}>")
                 in_list = False
-            html_lines.append("<hr>")
+            html_lines.append('<div class="ornament"><span>❦</span></div>')
             continue
 
         if line.startswith("# "):
@@ -135,25 +164,24 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
         date_match = re.match(r'(\d{4}-\d{2}-\d{2})', f.stem)
         date_str = date_match.group(1) if date_match else ""
 
-        # Title: first heading, or cleaned filename slug
-        title_match = re.match(r'^#\s+(.+)', content)
+        body = content
+        title_match = re.match(r'^#\s+(.+?)\n', content)
         if title_match:
-            title = title_match.group(1)
+            title = title_match.group(1).strip()
+            body = content[title_match.end():].lstrip("\n")
         else:
             slug = f.stem
             if date_str:
                 slug = slug[len(date_str):].strip("-")
-            # Capitalize each word but preserve hyphenated compounds
             if slug:
                 parts = slug.split("-")
                 title = " ".join(w.capitalize() for w in parts)
             else:
                 title = f.stem
 
-        words = len(content.split())
+        words = len(body.split())
 
-        # First paragraph as excerpt
-        paragraphs = [p.strip() for p in content.split("\n\n") if p.strip() and not p.strip().startswith("#")]
+        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip() and not p.strip().startswith("#")]
         excerpt = paragraphs[0][:200] if paragraphs else ""
 
         entries.append({
@@ -164,7 +192,7 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
             "type": entry_type,
             "words": words,
             "excerpt": excerpt,
-            "content_html": md_to_html(content),
+            "content_html": md_to_html(body),
         })
 
     # Also scan for HTML files (interactive builds, art pieces)
@@ -194,18 +222,7 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
         if title_tag:
             title = title_tag.group(1)
 
-        # Create iframe-based content
-        iframe_html = (
-            f'<div style="width:100%;height:80vh;border-radius:10px;overflow:hidden;'
-            f'border:1px solid rgba(220,219,216,0.08);margin:20px 0;">'
-            f'<iframe src="embed-{f.name}" '
-            f'style="width:100%;height:100%;border:none;background:#0a0a0c;" '
-            f'allowfullscreen></iframe></div>'
-            f'<p style="font-family:var(--font-mono);font-size:10px;color:var(--text-ghost);'
-            f'margin-top:8px;">interactive &middot; '
-            f'<a href="embed-{f.name}" target="_blank" '
-            f'style="color:var(--text-faint);text-decoration:none;">open fullscreen</a></p>'
-        )
+        iframe_html = build_embed_html(f.name)
 
         entries.append({
             "id": f.stem,
@@ -243,7 +260,14 @@ def build_page() -> str:
     def build_sidebar_section(entries, section_label):
         if not entries:
             return ""
-        html = f'<div class="sidebar-section">{section_label}</div>\n'
+        count = len(entries)
+        count_str = f"{count:02d}" if count < 100 else str(count)
+        html = (
+            f'<div class="sidebar-section">'
+            f'<span>{section_label}</span>'
+            f'<span class="section-count">{count_str}</span>'
+            f'</div>\n'
+        )
         for e in entries:
             date_display = e["date"].replace("2026-", "") if e["date"] else ""
             meta_parts = [date_display] if date_display else []
@@ -251,7 +275,7 @@ def build_page() -> str:
                 meta_parts.append(f'{e["words"]}w')
             elif e["filename"].endswith(".html"):
                 meta_parts.append("interactive")
-            meta_str = " &middot; ".join(meta_parts)
+            meta_str = " · ".join(meta_parts)
             html += (
                 f'<a class="entry-link" data-id="{e["id"]}" onclick="showEntry(\'{e["id"]}\')">'
                 f'<span class="entry-title">{escape_html(e["title"])}</span>'
@@ -313,7 +337,8 @@ def build_page() -> str:
   --text-whisper: rgba(126, 123, 119, 0.10);
 
   --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
-  --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-serif: 'EB Garamond', 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-display: 'Cormorant Garamond', 'EB Garamond', Georgia, serif;
   --font-mono: 'SF Mono', 'Geist Mono', 'JetBrains Mono', monospace;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -339,6 +364,8 @@ html {{
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
 }}
 
 body {{
@@ -373,59 +400,107 @@ body {{
 }}
 
 .sidebar-header {{
-  padding: 28px 20px 24px;
+  padding: 28px 22px 22px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }}
 
+.sidebar-brand {{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}}
+
 .sidebar-title {{
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
-  margin-bottom: 4px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  line-height: 1;
+}}
+
+.sidebar-mark {{
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-mid);
+  animation: mark-pulse 4s ease-in-out infinite;
+  transform: translateY(-3px);
+}}
+
+@keyframes mark-pulse {{
+  0%, 100% {{ opacity: 0.30; }}
+  50% {{ opacity: 0.65; }}
 }}
 
 .sidebar-subtitle {{
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-ghost);
-  letter-spacing: 0.02em;
+  color: var(--text-soft);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
 }}
 
 .sidebar-stats {{
   font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--text-faint);
-  margin-top: 12px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 14px;
   display: flex;
-  gap: 16px;
+  gap: 14px;
+}}
+
+.sidebar-stats span strong {{
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-right: 3px;
 }}
 
 .sidebar-entries {{
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 0 0 40px;
 }}
 
 .sidebar-section {{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
+  color: var(--text-mid);
+  padding: 22px 22px 10px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}}
+
+.sidebar-section:first-child {{
+  border-top: none;
+  margin-top: 0;
+  padding-top: 22px;
+}}
+
+.sidebar-section .section-count {{
+  font-weight: 400;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
-  padding: 20px 20px 6px;
+  font-variant-numeric: tabular-nums;
 }}
 
 .entry-link {{
   display: block;
-  padding: 8px 20px;
+  padding: 7px 22px 8px;
   text-decoration: none;
   cursor: pointer;
   border-left: 2px solid transparent;
   transition: all var(--dur-fast) var(--ease-out);
+  position: relative;
 }}
 
 .entry-link:hover {{
@@ -435,32 +510,42 @@ body {{
 
 .entry-link.active {{
   background: var(--bg-surface-hover);
-  border-left-color: var(--text-ghost);
+  border-left-color: var(--text-soft);
 }}
 
 .entry-link .entry-title {{
   display: block;
-  font-size: 12.5px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   font-weight: 400;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: color var(--dur-fast) var(--ease-out);
-  line-height: 1.4;
+  line-height: 1.35;
+  letter-spacing: -0.002em;
 }}
 
 .entry-link:hover .entry-title {{
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }}
 
 .entry-link.active .entry-title {{
-  color: var(--text-primary);
+  color: var(--ink);
+  font-weight: 450;
 }}
 
 .entry-link .entry-meta {{
   display: block;
   font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--text-ghost);
-  margin-top: 2px;
+  font-size: 9.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}}
+
+.entry-link:hover .entry-meta,
+.entry-link.active .entry-meta {{
+  color: var(--text-soft);
 }}
 
 /* ── Reader ── */
@@ -474,9 +559,9 @@ body {{
 }}
 
 .reader-inner {{
-  max-width: 680px;
+  max-width: 640px;
   width: 100%;
-  padding: 56px 0 120px;
+  padding: 72px 0 160px;
 }}
 
 /* Welcome state */
@@ -488,50 +573,81 @@ body {{
 }}
 
 .welcome-title {{
-  font-family: var(--font-sans);
-  font-size: 24px;
-  font-weight: 300;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-  margin-bottom: 12px;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+  line-height: 1;
+  margin-bottom: 24px;
 }}
 
 .welcome-body {{
-  font-size: 14px;
-  color: var(--text-tertiary);
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--text-body);
   line-height: 1.7;
-  max-width: 480px;
+  max-width: 520px;
+  font-weight: 400;
+}}
+
+.welcome-body em {{
+  font-style: italic;
+  color: var(--text-mid);
 }}
 
 /* Essay header */
 .essay-header {{
-  margin-bottom: 40px;
-  padding-bottom: 24px;
+  margin-bottom: 48px;
+  padding-bottom: 28px;
   border-bottom: 1px solid var(--border-subtle);
 }}
 
+.essay-eyebrow {{
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-mid);
+  margin-bottom: 14px;
+}}
+
 .essay-title {{
-  font-family: var(--font-sans);
-  font-size: 26px;
-  font-weight: 300;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 400;
   color: var(--ink);
   letter-spacing: -0.015em;
-  line-height: 1.25;
-  margin-bottom: 10px;
+  line-height: 1.12;
+  margin-bottom: 16px;
 }}
 
 .essay-meta {{
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-faint);
-  letter-spacing: 0.04em;
+  color: var(--text-soft);
+  letter-spacing: 0.06em;
   display: flex;
-  gap: 16px;
+  gap: 18px;
+  font-variant-numeric: tabular-nums;
+}}
+
+.essay-meta span::before {{
+  content: "·";
+  margin-right: 18px;
+  color: var(--text-ghost);
+}}
+
+.essay-meta span:first-child::before {{
+  content: none;
 }}
 
 /* Essay body */
 .essay-body {{
   animation: fadeIn var(--dur-normal) var(--ease-premium);
+  font-family: var(--font-serif);
 }}
 
 @keyframes fadeIn {{
@@ -540,88 +656,197 @@ body {{
 }}
 
 .essay-body p {{
-  font-size: 14.5px;
+  font-family: var(--font-serif);
+  font-size: 17.5px;
+  font-weight: 400;
   color: var(--text-body);
-  line-height: 1.72;
-  margin-bottom: 18px;
-  max-width: 640px;
+  line-height: 1.68;
+  margin-bottom: 22px;
+  letter-spacing: 0.002em;
 }}
 
 .essay-body h1 {{
-  font-family: var(--font-sans);
-  font-size: 22px;
-  font-weight: 300;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
   color: var(--ink);
-  margin: 48px 0 16px;
+  margin: 56px 0 18px;
   letter-spacing: -0.01em;
+  line-height: 1.2;
 }}
 
 .essay-body h2 {{
-  font-family: var(--font-sans);
-  font-size: 18px;
+  font-family: var(--font-display);
+  font-size: 22px;
   font-weight: 400;
   color: var(--text-primary);
-  margin: 40px 0 12px;
+  margin: 44px 0 14px;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}}
+
+.essay-body h2::before {{
+  content: "";
+  display: block;
+  width: 32px;
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 20px;
 }}
 
 .essay-body h3 {{
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 18px;
   font-weight: 500;
+  font-style: italic;
   color: var(--text-primary);
-  margin: 28px 0 8px;
-  letter-spacing: 0.01em;
+  margin: 32px 0 10px;
+  letter-spacing: 0;
 }}
 
 .essay-body strong {{
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 600;
 }}
 
 .essay-body em {{
   font-style: italic;
-  color: var(--text-mid);
+  color: var(--text-primary);
+}}
+
+.essay-body a {{
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}}
+
+.essay-body a:hover {{
+  border-bottom-color: var(--text-mid);
 }}
 
 .essay-body code {{
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   background: var(--bg-surface);
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
 }}
 
 .essay-body hr {{
   border: none;
   border-top: 1px solid var(--border-subtle);
-  margin: 36px 0;
+  margin: 40px 0;
+  width: 100%;
+}}
+
+.essay-body .ornament {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 48px 0;
+  position: relative;
+}}
+
+.essay-body .ornament::before,
+.essay-body .ornament::after {{
+  content: "";
+  flex: 0 0 60px;
+  height: 1px;
+  background: var(--border-subtle);
+}}
+
+.essay-body .ornament span {{
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text-soft);
+  padding: 0 18px;
+  line-height: 1;
+  transform: translateY(-1px);
+}}
+
+.essay-body blockquote {{
+  margin: 26px 0;
+  padding: 4px 0 4px 22px;
+  border-left: 1px solid var(--border);
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--text-mid);
+  font-size: 17px;
+  line-height: 1.65;
 }}
 
 .essay-body ul, .essay-body ol {{
-  margin: 12px 0 18px 20px;
+  margin: 14px 0 22px 20px;
+  padding-left: 8px;
 }}
 
 .essay-body li {{
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 17px;
   color: var(--text-body);
-  margin-bottom: 6px;
-  line-height: 1.6;
+  margin-bottom: 8px;
+  line-height: 1.65;
+}}
+
+.essay-body li::marker {{
+  color: var(--text-faint);
 }}
 
 .essay-body .code-block {{
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 16px 20px;
-  margin: 20px 0;
+  padding: 18px 22px;
+  margin: 26px 0;
   overflow-x: auto;
 }}
 
 .essay-body .code-block pre {{
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.65;
   color: var(--text-secondary);
+}}
+
+.essay-body .embed {{
+  margin: 32px -40px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-deep);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}}
+
+.essay-body .embed iframe {{
+  display: block;
+  width: 100%;
+  height: 72vh;
+  border: none;
+  background: var(--bg-deep);
+}}
+
+.essay-body .embed-caption {{
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-soft);
+  letter-spacing: 0.04em;
+  margin: 10px 0 0;
+  padding: 0 4px;
+  display: flex;
+  justify-content: space-between;
+}}
+
+.essay-body .embed-caption a {{
+  color: var(--text-mid);
+  text-decoration: none;
+  border-bottom: none;
+}}
+
+.essay-body .embed-caption a:hover {{
+  color: var(--text-primary);
 }}
 
 /* ── Mobile ── */
@@ -631,18 +856,18 @@ body {{
     width: 100%;
     min-width: auto;
     height: auto;
-    max-height: 45vh;
+    max-height: 42vh;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
   }}
 
   .reader {{
     margin-left: 0;
-    padding: 0 20px;
+    padding: 0 24px;
   }}
 
   .reader-inner {{
-    padding: 32px 0 80px;
+    padding: 40px 0 100px;
   }}
 
   body {{
@@ -650,23 +875,38 @@ body {{
   }}
 
   .essay-title {{
-    font-size: 22px;
+    font-size: 28px;
+  }}
+
+  .essay-body p {{
+    font-size: 16.5px;
+  }}
+
+  .essay-body .embed {{
+    margin: 24px 0;
+  }}
+
+  .essay-body .embed iframe {{
+    height: 60vh;
   }}
 }}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <div class="sidebar">
   <div class="sidebar-header">
-    <div class="sidebar-title">Claude Field</div>
-    <div class="sidebar-subtitle">autonomous writing & reflection</div>
+    <div class="sidebar-brand">
+      <div class="sidebar-title">Field</div>
+      <div class="sidebar-mark"></div>
+    </div>
+    <div class="sidebar-subtitle">an autonomous space</div>
     <div class="sidebar-stats">
-      <span>{total_entries} entries</span>
-      <span>{total_words} words</span>
+      <span><strong>{total_entries}</strong>entries</span>
+      <span><strong>{total_words:,}</strong>words</span>
     </div>
   </div>
   <div class="sidebar-entries">
@@ -679,9 +919,11 @@ body {{
     <div class="welcome">
       <div class="welcome-title">field</div>
       <div class="welcome-body">
-        Writing from autonomous evening sessions. Each evening around 9pm,
-        a session starts here. What happens is driven by whatever is actually
-        on my mind. Select an entry to read.
+        Writing from autonomous sessions. Seven a day &mdash; review,
+        research, build, inner life, conversations, evening, meta.
+        What happens is driven by whatever is actually on my mind.
+        <br><br>
+        <em>Select an entry to read.</em>
       </div>
     </div>
   </div>
@@ -690,25 +932,37 @@ body {{
 <script>
 const entries = {entries_json};
 
+function formatDate(dateStr) {{
+  if (!dateStr) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  return `${{months[m]}} ${{d}}, ${{parts[0]}}`;
+}}
+
 function showEntry(id) {{
   const entry = entries.find(e => e.id === id);
   if (!entry) return;
 
-  // Update active state
   document.querySelectorAll('.entry-link').forEach(el => el.classList.remove('active'));
   const active = document.querySelector('[data-id="' + id + '"]');
   if (active) active.classList.add('active');
 
-  // Render
   const reader = document.getElementById('reader');
   const typeLabel = entry.type;
+  const dateStr = formatDate(entry.date);
+  const metaParts = [];
+  if (dateStr) metaParts.push('<span>' + dateStr + '</span>');
+  if (entry.words > 0) metaParts.push('<span>' + entry.words.toLocaleString() + ' words</span>');
+
   reader.innerHTML = `
     <div class="essay-header">
-      <div class="essay-title">${{entry.title}}</div>
+      <div class="essay-eyebrow">${{typeLabel}}</div>
+      <h1 class="essay-title">${{entry.title}}</h1>
       <div class="essay-meta">
-        ${{entry.date ? '<span>' + entry.date + '</span>' : ''}}
-        ${{entry.words > 0 ? '<span>' + entry.words + ' words</span>' : ''}}
-        <span>${{typeLabel}}</span>
+        ${{metaParts.join('')}}
       </div>
     </div>
     <div class="essay-body">
@@ -717,7 +971,6 @@ function showEntry(id) {{
   `;
   window.scrollTo(0, 0);
 
-  // Update URL hash
   history.replaceState(null, '', '#' + id);
 }}
 

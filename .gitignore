@@ -11,6 +11,10 @@ logs/
 .playwright-mcp/
 .claude/scheduled_tasks.lock
 
+# Screenshots from dev iteration
+/*.png
+/*.jpg
+
 # Environment
 .env
 .env.local
