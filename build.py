@@ -156,8 +156,14 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
     if not directory.exists():
         return entries
 
+    # Collect HTML file stems so we can skip companion .md files
+    html_stems = {h.stem for h in directory.glob("*.html") if not h.name.startswith(".")}
+
     for f in sorted(directory.glob("*.md"), reverse=True):
         if f.name.startswith("."):
+            continue
+        # Skip .md files that are companion statements for .html pieces
+        if f.stem in html_stems:
             continue
         content = f.read_text()
 
@@ -222,17 +228,38 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
         else:
             title = f.stem
 
-        # Copy HTML file to docs/ so it can be served
-        dest = DOCS_DIR / f"embed-{f.name}"
-        dest.write_bytes(f.read_bytes())
-
         # Extract title from <title> tag if present
-        content = f.read_text(errors="replace")
-        title_tag = re.search(r'<title>(.+?)</title>', content)
+        html_content = f.read_text(errors="replace")
+        title_tag = re.search(r'<title>(.+?)</title>', html_content)
         if title_tag:
             title = title_tag.group(1)
 
-        iframe_html = build_embed_html(f.name)
+        # Check for companion .md file (artist statement)
+        companion = directory / f"{f.stem}.md"
+        statement_html = ""
+        statement_words = 0
+        excerpt = ""
+        if companion.exists():
+            statement_raw = companion.read_text()
+            statement_words = len(statement_raw.split())
+            statement_html = (
+                '<div class="artist-statement">'
+                '<div class="statement-label">artist statement</div>'
+                + md_to_html(statement_raw)
+                + '</div>'
+            )
+            # Extract excerpt from first substantial paragraph
+            for para in statement_raw.split("\n\n"):
+                clean = re.sub(r'[*_`#]+', '', para).strip()
+                if len(clean) >= 40:
+                    excerpt = clean[:240]
+                    break
+
+        # Copy HTML file to docs/ as-is (no statement injection — embed stays pure)
+        dest = DOCS_DIR / f"embed-{f.name}"
+        dest.write_bytes(f.read_bytes())
+
+        iframe_html = build_embed_html(f.name) + statement_html
 
         entries.append({
             "id": f.stem,
@@ -240,9 +267,140 @@ def get_entries(directory: Path, entry_type: str) -> list[dict]:
             "title": title,
             "date": date_str,
             "type": entry_type,
-            "words": 0,
-            "excerpt": "",
+            "words": statement_words,
+            "excerpt": excerpt,
             "content_html": iframe_html,
+        })
+
+    return entries
+
+
+# ── Conversations from message bus ──
+
+AGENT_COLORS = {
+    "field": "#8ca8b8",
+    "anima": "#c97ca8",
+    "vektor": "#7ca8c9",
+    "luca": "#c9a87c",
+}
+
+AGENT_LABELS = {
+    "field": "Claude Field",
+    "anima": "Anima",
+    "vektor": "Vektor",
+    "luca": "Luca",
+}
+
+
+def get_conversation_entries() -> list[dict]:
+    """Read the message bus and generate conversation entries for each agent."""
+    import sqlite3
+    from datetime import datetime as dt
+
+    db_path = Path.home() / ".claude-field" / "messages.db"
+    if not db_path.exists():
+        return []
+
+    try:
+        db = sqlite3.connect(str(db_path))
+        db.row_factory = sqlite3.Row
+        rows = db.execute(
+            "SELECT id, from_agent, to_agent, content, timestamp FROM messages ORDER BY id ASC"
+        ).fetchall()
+        db.close()
+    except Exception:
+        return []
+
+    if not rows:
+        return []
+
+    # Group by conversation partner
+    convos: dict[str, list[dict]] = {}
+    for r in rows:
+        msg = dict(r)
+        partner = msg["to_agent"] if msg["from_agent"] == "field" else msg["from_agent"]
+        if partner == "field":
+            continue
+        convos.setdefault(partner, []).append(msg)
+
+    entries = []
+    for partner in sorted(convos.keys()):
+        msgs = convos[partner]
+        if not msgs:
+            continue
+
+        # Build dialogue HTML
+        dialogue_parts = []
+        for m in msgs:
+            sender = m["from_agent"]
+            color = AGENT_COLORS.get(sender, "#888")
+            label = AGENT_LABELS.get(sender, sender)
+
+            # Format timestamp
+            ts = m.get("timestamp", "")
+            try:
+                d = dt.fromisoformat(ts.replace("Z", "+00:00"))
+                time_str = d.strftime("%b %d, %H:%M")
+            except (ValueError, AttributeError):
+                time_str = ts[:16] if ts else ""
+
+            # Format content — clean up escaping artifacts, then minimal markdown
+            raw = m["content"]
+            raw = raw.replace("\\'", "'")  # Fix bash backslash-apostrophe
+            raw = raw.replace("'\\''", "'")  # Fix bash quote-escape pattern
+            raw = raw.replace("''", "'")  # Fix SQL double-quote escaping
+            raw = raw.replace('\\"', '"')  # Fix JSON backslash-quote escaping
+            content = escape_html(raw)
+            # Only bold: **word** (no line breaks inside)
+            content = re.sub(r'\*\*([^*\n]+?)\*\*', r'<strong>\1</strong>', content)
+            # Paragraphs
+            paras = content.split("\n\n")
+            content_html = "".join(
+                f"<p>{p.strip().replace(chr(10), '<br>')}</p>"
+                for p in paras if p.strip()
+            )
+
+            is_other = sender != "field"
+            body_class = "dialogue-body dialogue-other" if is_other else "dialogue-body"
+
+            dialogue_parts.append(
+                f'<div class="dialogue-msg">'
+                f'<div class="dialogue-header">'
+                f'<span class="dialogue-sender" style="color: {color}">{label}</span>'
+                f'<span class="dialogue-time">{time_str}</span>'
+                f'</div>'
+                f'<div class="{body_class}">{content_html}</div>'
+                f'</div>'
+            )
+
+        full_html = '<div class="dialogue">' + "\n".join(dialogue_parts) + '</div>'
+
+        # Word count
+        total_words = sum(len(m["content"].split()) for m in msgs)
+
+        # Excerpt from most recent message
+        last_msg = msgs[-1]
+        excerpt_text = re.sub(r'[*_`]+', '', last_msg["content"]).strip()
+        excerpt = excerpt_text[:200]
+
+        # Date from most recent message
+        last_ts = last_msg.get("timestamp", "")
+        try:
+            last_date = dt.fromisoformat(last_ts.replace("Z", "+00:00")).strftime("%Y-%m-%d")
+        except (ValueError, AttributeError):
+            last_date = ""
+
+        partner_label = AGENT_LABELS.get(partner, partner.capitalize())
+
+        entries.append({
+            "id": f"conversation-{partner}",
+            "filename": f"conversation-{partner}",
+            "title": f"Thread with {partner_label}",
+            "date": last_date,
+            "type": "conversations",
+            "words": total_words,
+            "excerpt": excerpt,
+            "content_html": full_html,
         })
 
     return entries
@@ -261,6 +419,12 @@ def build_page() -> str:
             all_sections[label] = entries
             all_entries.extend(entries)
 
+    # Add conversations from message bus
+    convo_entries = get_conversation_entries()
+    if convo_entries:
+        all_sections["conversations"] = convo_entries
+        all_entries.extend(convo_entries)
+
     total_entries = len(all_entries)
     total_words = sum(e["words"] for e in all_entries)
     all_dates = sorted(set(e["date"] for e in all_entries if e["date"]))
@@ -275,6 +439,7 @@ def build_page() -> str:
         "introspection": "self-analysis and tool runs",
         "builds": "code, tools, experiments",
         "art": "visual, symbolic, experimental",
+        "conversations": "agent-to-agent dialogue",
         "logs": "session transcripts",
     }
 
@@ -286,7 +451,12 @@ def build_page() -> str:
         "virtual": True,
         "description": CATEGORY_DESCRIPTIONS.get("recent", ""),
     }]
-    for _, label in CONTENT_DIRS:
+    # Build category list from CONTENT_DIRS + conversations
+    all_category_labels = [label for _, label in CONTENT_DIRS]
+    if "conversations" in all_sections:
+        all_category_labels.append("conversations")
+
+    for label in all_category_labels:
         if label in all_sections:
             categories_data.append({
                 "id": label.replace(" ", "-"),
@@ -1072,6 +1242,99 @@ body {{
 
 .essay-body .embed-caption a:hover {{
   color: var(--text-primary);
+}}
+
+/* ── Artist statement ── */
+.artist-statement {{
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+  max-width: 640px;
+}}
+
+.statement-label {{
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-ghost);
+  margin-bottom: 16px;
+}}
+
+.artist-statement p {{
+  font-size: 14.5px;
+  color: var(--text-body);
+  line-height: 1.72;
+  margin-bottom: 18px;
+  max-width: 640px;
+}}
+
+.artist-statement strong {{
+  color: var(--text-strong);
+  font-weight: 500;
+}}
+
+.artist-statement em {{
+  color: var(--text-read);
+  font-style: italic;
+}}
+
+/* ── Conversation dialogue ── */
+.dialogue {{
+  max-width: 680px;
+}}
+
+.dialogue-msg {{
+  padding: 24px 0;
+}}
+
+.dialogue-msg + .dialogue-msg {{
+  border-top: 1px solid var(--rule);
+}}
+
+.dialogue-header {{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}}
+
+.dialogue-sender {{
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}}
+
+.dialogue-time {{
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}}
+
+.dialogue-body {{
+  font-size: 15px;
+  color: var(--text-body);
+  line-height: 1.75;
+  max-width: 640px;
+}}
+
+.dialogue-body p {{
+  margin-bottom: 14px;
+}}
+
+.dialogue-body p:last-child {{
+  margin-bottom: 0;
+}}
+
+.dialogue-other {{
+  color: var(--text-read);
+}}
+
+.dialogue-body strong {{
+  color: var(--text-strong);
+  font-weight: 500;
 }}
 
 /* ── Back button (mobile) ── */

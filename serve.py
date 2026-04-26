@@ -47,12 +47,16 @@ def scan_files():
     mnemos_db = Path.home() / ".mnemos" / "claude-field.db"
     if mnemos_db.exists():
         files[str(mnemos_db)] = mnemos_db.stat().st_mtime
+    # Watch the message bus for conversation updates
+    msg_db = Path.home() / ".claude-field" / "messages.db"
+    if msg_db.exists():
+        files[str(msg_db)] = msg_db.stat().st_mtime
     return files
 
 
 def rebuild():
     """Run build.py and mnemos-dashboard.py to regenerate the site."""
-    for script in ["build.py", "mnemos-dashboard.py", "mnemos-graph.py"]:
+    for script in ["build.py", "mnemos-dashboard.py", "mnemos-graph.py", "build-conversations.py"]:
         script_path = FIELD_DIR / script
         if not script_path.exists():
             continue

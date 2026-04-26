@@ -172,9 +172,13 @@ if __name__ == "__main__":
         limit = int(args[2]) if len(args) > 2 else 20
         history(agent, limit)
     elif args[0] == "respond" and len(args) >= 3:
-        send_message(
-            # Need to look up who sent the original
-            None, " ".join(args[2:]), response_to=int(args[1])
-        )
+        # Look up who sent the original message to reply to them
+        conn = get_db()
+        orig = conn.execute("SELECT from_agent FROM messages WHERE id = ?", (int(args[1]),)).fetchone()
+        conn.close()
+        if orig:
+            send_message(orig["from_agent"], " ".join(args[2:]), response_to=int(args[1]))
+        else:
+            print(f"Message #{args[1]} not found.")
     else:
         print(__doc__)
