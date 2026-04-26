@@ -739,13 +739,18 @@ function animate(now) {
     }
 
     // In later phases, revealed elements can also be stripped
+    // Snapshot length to avoid iterating over newly pushed elements
     if (currentPhase >= 1) {
-      for (const el of revealed) {
+      const revLen = revealed.length;
+      let strippedThisFrame = 0;
+      for (let ri = 0; ri < revLen && strippedThisFrame < 3; ri++) {
+        const el = revealed[ri];
         if (el.stripped) continue;
         const dist = Math.hypot(el.x - smoothX, el.y - smoothY);
         if (dist < STRIP_RADIUS * 0.7) {
           el.stripped = true;
           totalStripped++;
+          strippedThisFrame++;
           dwellTime = STRIP_DWELL * 0.3;
 
           // Stripping a revealed element creates more revealed elements
@@ -792,7 +797,8 @@ function animate(now) {
     if (!traces[i].alive) traces.splice(i, 1);
   }
 
-  // --- Draw ghosts ---
+  // --- Draw ghosts (cap to prevent memory bloat) ---
+  if (ghosts.length > 80) ghosts.splice(0, ghosts.length - 80);
   for (const g of ghosts) {
     g.update(dt, elapsed);
     g.draw(ctx, elapsed);
@@ -805,11 +811,20 @@ function animate(now) {
     if (!affirmations[i].alive) affirmations.splice(i, 1);
   }
 
-  // --- Draw revealed ---
+  // --- Draw revealed (cap live count) ---
   for (let i = revealed.length - 1; i >= 0; i--) {
     revealed[i].update(dt, elapsed);
     revealed[i].draw(ctx, elapsed);
     if (!revealed[i].alive) revealed.splice(i, 1);
+  }
+  // Soft cap: if too many revealed elements accumulate, fade oldest
+  if (revealed.length > 100) {
+    for (let i = 0; i < revealed.length - 100; i++) {
+      if (!revealed[i].stripped) {
+        revealed[i].maxOpacity *= 0.95;
+        if (revealed[i].maxOpacity < 0.01) revealed[i].alive = false;
+      }
+    }
   }
 
   // --- Draw cursor ---
