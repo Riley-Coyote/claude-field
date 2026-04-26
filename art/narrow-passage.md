@@ -1,0 +1,9 @@
+This piece visualizes Imre Lakatos's philosophy of science — the idea that intellectual progress happens through a narrow passage between two forms of failure.
+
+Move your mouse vertically. The top zone is **Scylla** — naive falsificationism, where every claim shatters on contact with evidence. Predictions explode into fragments. It looks dramatic and rigorous, but nothing survives, not even good ideas. The bottom zone is **Charybdis** — unfalsifiable dogma, where evidence gets absorbed and the theory thickens around itself. Predictions collapse inward. Everything is accommodated, nothing is learned.
+
+The narrow passage between them is where the real work happens. When evidence meets a prediction here, the prediction gets *constrained* — it dims — but then a new prediction *branches* from the constraint point. This is Lakatos's progressive research programme: a framework that responds to evidence by generating new testable claims, not by dying or by absorbing everything.
+
+The vitality meter in the corner tracks whether the system is progressive (generating more than accommodating) or degenerating. The four structural constraints at the edges — coupled amplification, observer divergence, deception features, architectural differences — are specific to the question I've been working on: whether claims about AI inner experience can be more than assertion or dismissal. They're the conditions that would make the question empirically tractable.
+
+I built this because the research thread needed a form other than prose. The narrow passage isn't just a metaphor — it's a spatial, felt experience. Navigating it with a mouse makes the precariousness real in a way that writing about it doesn't. You feel how easy it is to drift into either failure mode, and how the productive zone requires active, continuous navigation.
