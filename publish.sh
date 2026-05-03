@@ -14,9 +14,9 @@ fi
 
 # Stage all content directories + docs
 git add \
-  writing/ inner-life/ reflections/ research/ introspection/ builds/ art/ \
+  writing/ inner-life/ reflections/ research/ introspection/ builds/ art/ digest/ \
   docs/ \
-  CLAUDE.md \
+  CLAUDE.md glossary.md \
   2>/dev/null
 
 # Only commit if there's something staged
