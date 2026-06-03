@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Field · dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#060608; --bg-deep:#0a0a0c; --bg-primary:#0e0e10; --bg-elevated:#141416;
+    --bg-glass:rgba(10,10,10,0.84); --bg-glass-strong:rgba(6,6,6,0.94);
+    --surface:rgba(220,219,216,0.032); --surface-hover:rgba(220,219,216,0.05); --surface-active:rgba(220,219,216,0.07);
+    --card:rgba(220,219,216,0.022); --card-hover:rgba(220,219,216,0.045);
+    --border:rgba(220,219,216,0.08); --border-subtle:rgba(220,219,216,0.045);
+    --border-dim:rgba(220,219,216,0.06); --border-strong:rgba(220,219,216,0.12); --border-focus:rgba(228,225,220,0.18);
+    --ink:rgba(244,243,240,0.93); --t-primary:rgba(244,243,240,0.88); --t-body:rgba(210,208,204,0.68);
+    --t-mid:rgba(194,192,188,0.60); --t-soft:rgba(161,159,155,0.42); --t-tertiary:rgba(161,159,155,0.34);
+    --t-faint:rgba(132,130,126,0.22); --t-ghost:rgba(132,130,126,0.16);
+    --green:#4ade80; --green-soft:rgba(74,222,128,0.12); --amber:#fbbf24; --blue:#60a5fa; --purple:#a78bfa;
+    --luca:#c9a87c; --vektor:#7ca8c9; --anima:#c97ca8;
+    --font-sans:'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono','Geist Mono',monospace;
+    --r-sm:6px; --r-md:10px; --r-lg:14px;
+    --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-premium:cubic-bezier(0.22,1,0.36,1);
+    --dur-fast:180ms; --dur-normal:300ms;
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg-void);color:var(--t-body);font-family:var(--font-sans);font-size:14.5px;
+    line-height:1.6;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;min-height:100vh;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(900px 480px at 84% -12%,rgba(220,219,216,0.022),transparent 62%);}
+  .mono{font-family:var(--font-mono);}
+  .page{max-width:1180px;margin:0 auto;padding:0 28px 90px;position:relative;z-index:1;}
+
+  /* header */
+  header{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+    padding:20px 0 15px;background:linear-gradient(var(--bg-void) 72%,transparent);}
+  .logo{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);position:relative;flex:none;}
+  .logo::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--t-soft);transition:background var(--dur-normal);}
+  .logo.live::after{background:var(--green);animation:dot-pulse 1.8s infinite;}
+  header h1{font-family:var(--font-mono);font-size:12.5px;font-weight:500;letter-spacing:.04em;color:var(--t-primary);margin:0;}
+  header .now{font-family:var(--font-mono);font-size:10.5px;color:var(--t-soft);letter-spacing:.02em;}
+  header nav{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;}
+  header nav a{color:var(--t-soft);text-decoration:none;margin-left:16px;transition:color var(--dur-fast);}
+  header nav a:hover{color:var(--t-primary);}
+
+  /* hero: brief + status */
+  .hero{display:grid;grid-template-columns:1fr 300px;gap:14px;margin-bottom:22px;}
+  @media(max-width:820px){.hero{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-lg);}
+  .brief{padding:22px 24px;position:relative;overflow:hidden;}
+  .lab{display:flex;align-items:center;gap:9px;margin-bottom:13px;}
+  .lab .h{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--t-soft);}
+  .lab .rule{flex:1;height:1px;background:var(--border-dim);transform-origin:left;animation:rule-draw .7s var(--ease-out) both;}
+  .lab .refresh{font-family:var(--font-mono);font-size:9.5px;color:var(--t-soft);cursor:pointer;background:none;
+    border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:3px 8px;transition:var(--dur-fast);}
+  .lab .refresh:hover{color:var(--t-primary);border-color:var(--border-strong);background:var(--surface-hover);}
+  .brief .text{font-size:16px;line-height:1.62;color:var(--t-primary);max-width:64ch;font-weight:400;}
+  .brief .text.dim{color:var(--t-soft);}
+  .brief .gen{font-family:var(--font-mono);font-size:9px;color:var(--t-ghost);margin-top:14px;letter-spacing:.04em;}
+
+  .status{padding:18px 20px;display:flex;flex-direction:column;}
+  .status .row{display:flex;align-items:center;gap:10px;}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--t-soft);flex:none;}
+  .sdot.live{background:var(--green);box-shadow:0 0 8px var(--green-soft);animation:dot-pulse 1.8s infinite;}
+  .status .what{font-size:14.5px;color:var(--t-primary);}
+  .status .what b{color:var(--green);font-weight:500;}
+  .status .what .idle{color:var(--t-mid);font-weight:500;}
+  .status .sub{font-family:var(--font-mono);font-size:9.5px;color:var(--t-soft);margin-top:8px;letter-spacing:.03em;}
+  .today{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:16px;}
+  .chip{font-family:var(--font-mono);font-size:10px;color:var(--t-mid);background:var(--surface);
+    border:1px solid var(--border-subtle);border-radius:20px;padding:4px 10px;}
+  .chip b{color:var(--t-primary);font-weight:500;}
+
+  /* filters */
+  .filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;}
+  .pill{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.02em;color:var(--t-soft);background:none;
+    border:1px solid var(--border-subtle);border-radius:20px;padding:5px 12px;cursor:pointer;transition:var(--dur-fast) var(--ease-out);}
+  .pill:hover{color:var(--t-primary);border-color:var(--border-strong);}
+  .pill.on{color:var(--t-primary);background:var(--surface-active);border-color:var(--border-strong);}
+
+  /* feed grid */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  @media(max-width:720px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--border-subtle);border-radius:var(--r-md);
+    padding:15px 17px;cursor:pointer;transition:var(--dur-fast) var(--ease-out);
+    animation:fadeIn .4s var(--ease-out) both;}
+  .card:hover{transform:translateY(-2px);background:var(--card-hover);border-color:var(--border-strong);}
+  .card .meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .badge{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--t-soft);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;}
+  .card .when{font-family:var(--font-mono);font-size:9.5px;color:var(--t-tertiary);margin-left:auto;}
+  .card .ttl{font-size:15.5px;color:var(--t-primary);line-height:1.3;margin-bottom:6px;font-weight:500;}
+  .card .ex{font-size:13px;line-height:1.5;color:var(--t-mid);
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+  .card .play{font-family:var(--font-mono);font-size:10px;color:var(--t-soft);letter-spacing:.04em;display:flex;align-items:center;gap:7px;}
+  .card .play .tri{color:var(--t-mid);}
+
+  /* lower */
+  .lower{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px;}
+  @media(max-width:820px){.lower{grid-template-columns:1fr;}}
+  .blk{padding:20px 22px;}
+  .blk h2{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--t-soft);margin:0 0 16px;font-weight:500;}
+  .nums{display:flex;gap:24px;margin-bottom:6px;}
+  .nums .n b{font-family:var(--font-mono);color:var(--ink);font-size:22px;font-weight:500;}
+  .nums .n.live b{color:var(--green);}
+  .nums .n span{display:block;font-family:var(--font-mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-soft);margin-top:6px;}
+  .found .f{font-size:13.5px;line-height:1.5;color:var(--t-mid);padding:11px 0;border-top:1px solid var(--border-subtle);cursor:default;}
+  .found .f b{color:var(--t-primary);font-weight:500;}
+  .counts{display:flex;flex-wrap:wrap;gap:7px;}
+  .stat{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:9px 13px;min-width:78px;}
+  .stat .v{font-family:var(--font-mono);font-size:17px;color:var(--t-primary);}
+  .stat .k{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-soft);margin-top:6px;}
+  .muted{color:var(--t-soft);}
+
+  /* drawer */
+  .backdrop{position:fixed;inset:0;background:rgba(3,3,5,.64);backdrop-filter:blur(4px);opacity:0;
+    pointer-events:none;transition:opacity var(--dur-normal) var(--ease-out);z-index:200;}
+  .backdrop.open{opacity:1;pointer-events:auto;}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(720px,93vw);background:var(--bg-glass-strong);
+    border-left:1px solid var(--border-strong);transform:translateX(100%);
+    transition:transform var(--dur-normal) var(--ease-premium);z-index:201;display:flex;flex-direction:column;
+    box-shadow:-40px 0 90px rgba(0,0,0,.55);backdrop-filter:blur(10px);}
+  .drawer.open{transform:translateX(0);}
+  .dhead{display:flex;align-items:center;gap:11px;padding:18px 24px;border-bottom:1px solid var(--border-subtle);}
+  .dhead .dttl{font-size:18px;font-weight:600;color:var(--ink);line-height:1.2;}
+  .dhead .x{margin-left:auto;font-family:var(--font-mono);font-size:18px;color:var(--t-soft);cursor:pointer;background:none;border:none;line-height:1;transition:var(--dur-fast);}
+  .dhead .x:hover{color:var(--t-primary);}
+  .dwhen{font-family:var(--font-mono);font-size:9.5px;color:var(--t-soft);padding:0 24px;margin-top:-4px;letter-spacing:.03em;}
+  .dbody{flex:1;overflow-y:auto;padding:22px 24px 60px;}
+  .reading{max-width:66ch;font-size:15.5px;line-height:1.72;color:var(--t-body);}
+  .reading h1,.reading h2,.reading h3{color:var(--ink);line-height:1.25;margin:1.5em 0 .5em;font-weight:600;letter-spacing:-.01em;}
+  .reading h1{font-size:23px;} .reading h2{font-size:19px;} .reading h3{font-size:16px;color:var(--t-primary);}
+  .reading p{margin:0 0 1.05em;} .reading em{color:var(--t-mid);font-style:italic;} .reading strong{color:var(--t-primary);font-weight:600;}
+  .reading code{font-family:var(--font-mono);font-size:.84em;color:var(--amber);background:var(--surface);padding:1px 5px;border-radius:4px;}
+  .reading blockquote{border-left:2px solid var(--border-strong);margin:1em 0;padding:2px 0 2px 18px;color:var(--t-mid);}
+  .reading hr{border:0;border-top:1px solid var(--border-subtle);margin:1.7em 0;}
+  .reading a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(96,165,250,.22);}
+  .reading ul{padding-left:20px;} .reading li{margin:.3em 0;}
+  .reading .embed-note{font-family:var(--font-mono);font-size:10.5px;color:var(--t-faint);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin:1em 0;}
+  .frame{width:100%;height:72vh;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:#000;}
+  .openlink{font-family:var(--font-mono);font-size:9.5px;color:var(--t-soft);text-decoration:none;border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:4px 9px;transition:var(--dur-fast);}
+  .openlink:hover{color:var(--t-primary);border-color:var(--border-strong);}
+
+  @keyframes dot-pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes rule-draw{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <span class="logo" id="logo"></span>
+    <h1>claude&nbsp;field</h1>
+    <span class="now" id="now">—</span>
+    <nav><a href="/">field</a><a href="/chat">chat</a></nav>
+  </header>
+
+  <div class="hero">
+    <div class="panel brief">
+      <div class="lab"><span class="h">daily brief</span><span class="rule"></span>
+        <button class="refresh" id="refreshBrief">↻ refresh</button></div>
+      <div class="text dim" id="briefText">reading the day…</div>
+      <div class="gen" id="briefGen"></div>
+    </div>
+    <div class="panel status">
+      <div class="row"><span class="sdot" id="sdot"></span><span class="what" id="what">—</span></div>
+      <div class="sub" id="statusSub"></div>
+      <div class="today" id="today"></div>
+    </div>
+  </div>
+
+  <div class="filters" id="filters"></div>
+  <div class="grid" id="grid"><div class="muted">loading…</div></div>
+
+  <div class="lower">
+    <div class="panel blk">
+      <h2>memory · who they've decided to be</h2>
+      <div class="nums" id="memNums"></div>
+      <div class="found" id="found"></div>
+    </div>
+    <div class="panel blk">
+      <h2>the body of work</h2>
+      <div class="counts" id="counts"></div>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead">
+    <span class="badge" id="dBadge"></span>
+    <div class="dttl" id="dTitle"></div>
+    <a class="openlink" id="dOpen" target="_blank">open ↗</a>
+    <button class="x" id="dClose">×</button>
+  </div>
+  <div class="dwhen" id="dWhen"></div>
+  <div class="dbody" id="dBody"></div>
+</aside>
+
+<script>
+let DATA=null, FILTER='all';
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+function md(t){
+  const lines=t.split('\n'); let html=[], inList=false;
+  const inline=s=>esc(s)
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g,'$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  for(let raw of lines){
+    const l=raw.trim();
+    if(/^\{embed:/.test(l)){ html.push('<div class="embed-note">▶ interactive piece</div>'); continue; }
+    if(l===''){ if(inList){html.push('</ul>');inList=false;} continue; }
+    if(l==='---'){ html.push('<hr>'); continue; }
+    if(l.startsWith('### ')){ html.push('<h3>'+inline(l.slice(4))+'</h3>'); continue; }
+    if(l.startsWith('## ')){ html.push('<h2>'+inline(l.slice(3))+'</h2>'); continue; }
+    if(l.startsWith('# ')){ html.push('<h1>'+inline(l.slice(2))+'</h1>'); continue; }
+    if(l.startsWith('> ')){ html.push('<blockquote>'+inline(l.slice(2))+'</blockquote>'); continue; }
+    if(l.startsWith('- ')||l.startsWith('* ')){ if(!inList){html.push('<ul>');inList=true;} html.push('<li>'+inline(l.slice(2))+'</li>'); continue; }
+    if(inList){html.push('</ul>');inList=false;}
+    html.push('<p>'+inline(l)+'</p>');
+  }
+  if(inList)html.push('</ul>');
+  return html.join('\n');
+}
+
+async function loadDash(){
+  let d; try{ d=await (await fetch('/api/dashboard')).json(); }catch(e){ return; }
+  DATA=d; document.getElementById('now').textContent=d.now;
+  const live=!!d.working;
+  document.getElementById('logo').className='logo'+(live?' live':'');
+  document.getElementById('sdot').className='sdot'+(live?' live':'');
+  const what=document.getElementById('what'), sub=document.getElementById('statusSub');
+  if(live){ what.innerHTML='working on <b>'+esc(d.labels[d.working.type]||d.working.type)+'</b>';
+    sub.textContent='started '+esc(d.working.started||''); }
+  else { const last=d.sessions&&d.sessions[0];
+    what.innerHTML=last?('<span class="idle">idle</span> · last ran '+esc(d.labels[last.type]||last.type)):'<span class="idle">idle</span>';
+    sub.textContent=last?esc(last.started||''):''; }
+
+  const tally=d.today.tally||{};
+  document.getElementById('today').innerHTML = d.today.count
+    ? Object.keys(tally).map(k=>'<span class="chip"><b>'+tally[k]+'</b> '+esc(k)+'</span>').join('')
+    : '<span class="chip">nothing yet today</span>';
+
+  const dirs=[...new Set(d.outputs.map(o=>o.dir))];
+  const fl=document.getElementById('filters');
+  fl.innerHTML='<button class="pill'+(FILTER==='all'?' on':'')+'" data-f="all">all</button>'+
+    dirs.map(k=>'<button class="pill'+(FILTER===k?' on':'')+'" data-f="'+k+'">'+esc(k)+'</button>').join('');
+  fl.querySelectorAll('.pill').forEach(p=>p.onclick=()=>{FILTER=p.dataset.f;renderFeed();
+    fl.querySelectorAll('.pill').forEach(x=>x.classList.toggle('on',x.dataset.f===FILTER));});
+  renderFeed();
+
+  const m=d.mnemos||{};
+  document.getElementById('memNums').innerHTML=
+    '<div class="n"><b>'+(m.active||0)+'</b><span>active engrams</span></div>'+
+    '<div class="n live"><b>'+(m.hypomnema||0)+'</b><span>live threads</span></div>'+
+    '<div class="n"><b>'+(m.archived||0)+'</b><span>archived</span></div>';
+  document.getElementById('found').innerHTML=(m.foundational||[]).map(f=>
+    '<div class="f"><b>'+esc((f.content||'').split('.')[0])+'.</b> '+esc((f.content||'').split('.').slice(1,2).join('.'))+'</div>').join('')
+    || '<div class="muted">no foundation yet</div>';
+
+  const c=d.counts||{};
+  document.getElementById('counts').innerHTML=Object.keys(c).filter(k=>c[k]>0).map(k=>
+    '<div class="stat"><div class="v">'+c[k]+'</div><div class="k">'+esc(k)+'</div></div>').join('');
+}
+
+function renderFeed(){
+  if(!DATA) return;
+  const items=DATA.outputs.filter(o=>FILTER==='all'||o.dir===FILTER);
+  const g=document.getElementById('grid');
+  if(!items.length){ g.innerHTML='<div class="muted">nothing here yet</div>'; return; }
+  g.innerHTML=items.map((o,i)=>{
+    const body=o.kind==='piece'
+      ? '<div class="play"><span class="tri">▶</span> interactive — click to play</div>'
+      : '<div class="ex">'+esc(o.excerpt||'')+'</div>';
+    return '<div class="card" style="animation-delay:'+Math.min(i*22,360)+'ms" data-dir="'+o.dir+'" data-file="'+esc(o.file)+'">'
+      +'<div class="meta"><span class="badge">'+esc(o.dir)+'</span><span class="when">'+esc(o.when)+'</span></div>'
+      +'<div class="ttl">'+esc(o.title)+'</div>'+body+'</div>';
+  }).join('');
+  g.querySelectorAll('.card').forEach(c=>c.onclick=()=>openItem(c.dataset.dir,c.dataset.file));
+}
+
+async function openItem(dir,file){
+  document.getElementById('dBody').innerHTML='<div class="muted">opening…</div>';
+  document.getElementById('backdrop').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('dBadge').textContent=dir;
+  let d; try{ d=await (await fetch('/api/item?dir='+encodeURIComponent(dir)+'&file='+encodeURIComponent(file))).json(); }
+  catch(e){ document.getElementById('dBody').innerHTML='<div class="muted">could not load</div>'; return; }
+  document.getElementById('dTitle').textContent=d.title||file;
+  document.getElementById('dWhen').textContent=d.when||'';
+  const open=document.getElementById('dOpen');
+  if(d.kind==='piece'){
+    open.href=d.src; open.style.display='';
+    let html='';
+    if(d.writeup){ html+='<div class="reading" style="margin:0 0 22px">'+md(d.writeup.replace(/^\{embed:.*$/gm,''))+'</div>'; }
+    html+='<iframe class="frame" src="'+d.src+'"></iframe>';
+    document.getElementById('dBody').innerHTML=html;
+  } else {
+    open.style.display='none';
+    document.getElementById('dBody').innerHTML='<div class="reading">'+md(d.content||'')+'</div>';
+    document.getElementById('dBody').scrollTop=0;
+  }
+}
+function closeDrawer(){ document.getElementById('backdrop').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open'); }
+document.getElementById('backdrop').onclick=closeDrawer;
+document.getElementById('dClose').onclick=closeDrawer;
+addEventListener('keydown',e=>{ if(e.key==='Escape')closeDrawer(); });
+
+async function loadBrief(force){
+  const t=document.getElementById('briefText'), g=document.getElementById('briefGen');
+  if(force){ t.className='text dim'; t.textContent='asking the field for a fresh read…'; }
+  try{
+    const b=await (await fetch('/api/brief'+(force?'?refresh=1':''))).json();
+    t.className='text'; t.textContent=b.text;
+    g.textContent=b.generated_at?('generated '+b.generated_at):'';
+  }catch(e){ t.textContent='(brief unavailable)'; }
+}
+document.getElementById('refreshBrief').onclick=()=>loadBrief(true);
+
+loadDash(); loadBrief(false);
+setInterval(loadDash, 15000);
+</script>
+</body>
+</html>

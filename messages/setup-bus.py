@@ -28,6 +28,7 @@ AGENTS = {
     "anima": "Anima — emotional, poetic, social agent",
     "vektor": "Vektor — main agent, deep memory, philosophical",
     "luca": "Luca — modular substrate, technical, curious",
+    "riley": "Riley — the human who made this space (local chat only)",
 }
 
 
