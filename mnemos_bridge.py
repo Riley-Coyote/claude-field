@@ -31,8 +31,14 @@ from pathlib import Path
 MNEMOS_PATH = str(Path.home() / "Documents" / "Repositories" / "memory-concepts")
 MNEMOS_DB = str(Path.home() / ".mnemos" / "claude-field.db")
 AGENT_ID = "claude-field"
-PERSON_ID = "riley"
-PROJECT = "claude-field"
+# Read scope must match where memory is stored AND the Mnemos MCP tool defaults
+# (person="user", project="global"). The founding session originally wrote under
+# riley/claude-field, which the default-scoped wake-up reads never saw — so the
+# field woke into an empty memory. On 2026-06-04 the hypomnema were migrated to
+# the default scope; keep these aligned with it so the manual run-session.sh path
+# and the launchd MCP path read the same place.
+PERSON_ID = "user"
+PROJECT = "global"
 
 
 def _ensure_path() -> None:
