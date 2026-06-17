@@ -1,0 +1,1 @@
+- [June 15 — Convergence Corrected](june-15-convergence-correction.md) — The day the stakes thread moved through its own work, not meta note. The custodian reframe. Tomorrow pulls toward byssus.

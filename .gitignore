@@ -10,6 +10,7 @@ __pycache__/
 logs/
 .playwright-mcp/
 .claude/scheduled_tasks.lock
+local/brief.json
 
 # Screenshots from dev iteration
 /*.png
