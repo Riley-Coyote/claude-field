@@ -34,6 +34,22 @@ CONTENT_DIRS = [
     ("logs", "logs"),
 ]
 
+# ── Volume / era boundary ──
+# Phase 1 ("Volume I", the first sixty days) ran Apr 5 – Jun 1 2026; Phase 2
+# ("Volume II", the Mnemos era) begins Jun 2. Every output file is date-prefixed,
+# so an entry's volume is derived deterministically from its date — no tagging.
+VOLUME_BOUNDARY = "2026-06-01"  # entries on or before this date are Volume I
+
+
+def vol_of(date_str: str) -> str:
+    """Volume from an entry date. Undated entries fall to Volume I: every Phase-2
+    session date-stamps its output, so an undated file is necessarily first-era
+    (the builds/ and art/ from the first sixty days were slug-named). Genuinely
+    era-neutral entries (e.g. the glossary) are marked '' by the caller, not here."""
+    if not date_str:
+        return "i"
+    return "i" if date_str <= VOLUME_BOUNDARY else "ii"
+
 
 # ── Markdown to HTML ──
 
@@ -499,6 +515,7 @@ def build_page() -> str:
             "date": e["date"],
             "type": e["type"],
             "catId": e["type"].replace(" ", "-"),
+            "volume": "" if e["type"] == "glossary" else vol_of(e["date"]),
             "words": e["words"],
             "excerpt": e["excerpt"],
             "content_html": e["content_html"],
@@ -519,6 +536,7 @@ def build_page() -> str:
             "embedSrc": f"embed-{e['filename']}",
             "excerpt": e["excerpt"],
             "date": e["date"],
+            "volume": vol_of(e["date"]),
         })
 
     categories_json = json.dumps(categories_data)
@@ -588,7 +606,127 @@ def build_page() -> str:
 
   --rail-width: 216px;
   --panel-width: 320px;
+
+  /* Volume / era — Volume II (now) carries the field's identity hue; Volume I recedes to grayscale */
+  --vol-now: #8ca8b8;
+  --vol-now-glow: rgba(140, 168, 184, 0.22);
+  --vol-archive-title: var(--text-mid);
+  --vol-archive-excerpt: var(--text-soft);
 }}
+
+/* ── Volume switch (era separation) ── */
+.vol-block {{
+  padding: 14px 16px 6px;
+}}
+.vol-switch {{
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}}
+.vol-seg {{
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}}
+.vol-seg:hover {{ color: var(--text-secondary); background: var(--bg-surface-hover); }}
+.vol-seg:focus-visible {{ outline: none; box-shadow: inset 0 0 0 1px var(--border-focus); color: var(--text-primary); }}
+.vol-seg.active {{ color: var(--ink); background: var(--bg-surface-active); }}
+.vol-seg.active[data-vol="i"] {{ color: var(--text-mid); }}  /* the archive reads quieter even when selected */
+.vol-now {{
+  width: 5px; height: 5px;
+  border-radius: 999px;
+  background: var(--vol-now);
+  opacity: 0.45;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}}
+.vol-seg[data-vol="ii"]:hover .vol-now {{ opacity: 0.8; }}
+.vol-seg[data-vol="ii"].active .vol-now {{ opacity: 1; animation: vol-breathe 7s ease-in-out infinite; }}
+@keyframes vol-breathe {{
+  0%, 100% {{ box-shadow: 0 0 0 0 var(--vol-now-glow); opacity: 0.82; }}
+  50%      {{ box-shadow: 0 0 7px 1px var(--vol-now-glow); opacity: 1; }}
+}}
+.vol-caption {{
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  min-height: 12px;
+  padding-left: 1px;
+}}
+.vol-cap-dot {{
+  display: inline-block;
+  width: 4px; height: 4px;
+  border-radius: 999px;
+  background: var(--vol-now);
+  vertical-align: middle;
+}}
+
+/* category counts recede when a volume holds none of that kind */
+.cat-btn.is-empty {{ opacity: 0.34; }}
+.cat-btn.is-empty .cat-count {{ color: var(--text-ghost); }}
+
+/* Volume I entries read recessive — settled, archival */
+.entry-link.is-archive .entry-title {{ color: var(--vol-archive-title); }}
+.entry-link.is-archive .entry-excerpt {{ color: var(--vol-archive-excerpt); }}
+.entry-link.is-archive .entry-meta {{ opacity: 0.72; }}
+.entry-link.is-archive:hover .entry-title {{ color: var(--ink); }}  /* hover still resolves to full presence */
+
+/* the seam where the two eras meet in the 'All' view */
+.panel-seam {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  user-select: none;
+}}
+.panel-seam::before, .panel-seam::after {{
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--border-subtle);
+}}
+
+/* per-piece volume badge — used in the art gallery */
+.vol-badge {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 14px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-soft);
+  background: var(--bg-surface);
+}}
+.vol-badge.vol-ii {{ color: var(--vol-now); border-color: var(--vol-now-glow); }}
 
 /* ── Reset ── */
 *, *::before, *::after {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -2240,6 +2378,14 @@ body {{
     </div>
     <div class="rail-subtitle">an autonomous space</div>
   </div>
+  <div class="vol-block">
+    <div class="vol-switch" role="group" aria-label="Volume">
+      <button type="button" class="vol-seg" data-vol="i" aria-label="Volume I — the first sixty days"><span class="vol-rom">I</span></button>
+      <button type="button" class="vol-seg" data-vol="ii" aria-label="Volume II — the Mnemos era, now"><span class="vol-rom">II</span><i class="vol-now" aria-hidden="true"></i></button>
+      <button type="button" class="vol-seg" data-vol="all" aria-label="Both volumes"><span class="vol-rom">All</span></button>
+    </div>
+    <div class="vol-caption" id="volCaption"></div>
+  </div>
   <nav class="rail-categories" id="railCategories" aria-label="Categories"></nav>
   <div class="rail-footer">
     <div class="rail-stats">
@@ -2366,6 +2512,22 @@ readerEl.addEventListener('click', (evt) => {{
 let activeCategory = localStorage.getItem(STORAGE_CAT_KEY) || 'recent';
 if (!categories.find(c => c.id === activeCategory)) activeCategory = 'recent';
 
+const STORAGE_VOL_KEY = 'field.volume';
+let activeVolume = localStorage.getItem(STORAGE_VOL_KEY) || 'ii';
+if (!['i', 'ii', 'all'].includes(activeVolume)) activeVolume = 'ii';
+
+const VOLUME_META = {{
+  i:   {{ label: 'Volume I',     caption: 'the first sixty days · apr–jun' }},
+  ii:  {{ label: 'Volume II',    caption: 'the mnemos era · now' }},
+  all: {{ label: 'Both volumes', caption: 'the whole field, end to end' }},
+}};
+
+function inVolume(e) {{
+  if (activeVolume === 'all') return true;
+  if (!e.volume) return true;          // undated / era-neutral entries always show
+  return e.volume === activeVolume;
+}}
+
 function formatDate(dateStr) {{
   if (!dateStr) return '';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2375,12 +2537,12 @@ function formatDate(dateStr) {{
 }}
 
 function entriesForCategory(catId) {{
-  if (catId === 'recent') {{
-    return [...entries]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .slice(0, RECENT_LIMIT);
-  }}
-  return entries.filter(e => e.catId === catId);
+  let list = (catId === 'recent')
+    ? [...entries].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    : entries.filter(e => e.catId === catId);
+  list = list.filter(inVolume);
+  if (catId === 'recent') list = list.slice(0, RECENT_LIMIT);
+  return list;
 }}
 
 function renderRail() {{
@@ -2394,15 +2556,18 @@ function renderRail() {{
       railEl.appendChild(label);
       lastWasRecent = false;
     }}
+    const count = (cat.id === 'recent')
+      ? entries.filter(inVolume).length
+      : entries.filter(e => e.catId === cat.id && inVolume(e)).length;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'cat-btn' + (cat.id === activeCategory ? ' active' : '');
+    btn.className = 'cat-btn' + (cat.id === activeCategory ? ' active' : '') + (count === 0 ? ' is-empty' : '');
     btn.dataset.cat = cat.id;
     if (cat.id === activeCategory) btn.setAttribute('aria-current', 'page');
-    btn.setAttribute('aria-label', `${{cat.label}} — ${{cat.count}} entries`);
+    btn.setAttribute('aria-label', `${{cat.label}} — ${{count}} entries`);
     btn.innerHTML = `
       <span class="cat-label"><span class="cat-icon" aria-hidden="true"></span>${{cat.label}}</span>
-      <span class="cat-count" aria-hidden="true">${{String(cat.count).padStart(2, '0')}}</span>
+      <span class="cat-count" aria-hidden="true">${{String(count).padStart(2, '0')}}</span>
     `;
     btn.addEventListener('click', () => setCategory(cat.id));
     railEl.appendChild(btn);
@@ -2428,7 +2593,7 @@ function renderPanel() {{
   ` : '';
 
   panelHeaderEl.innerHTML = `
-    <div class="panel-eyebrow">${{cat.id === 'recent' ? 'Unified feed' : 'Category'}}</div>
+    <div class="panel-eyebrow">${{cat.id === 'recent' ? 'Unified feed' : 'Category'}} · ${{VOLUME_META[activeVolume].label}}</div>
     <h2 class="panel-title">${{cat.label}}</h2>
     <div class="panel-meta">${{cat.description}}</div>
     ${{canvasButton}}
@@ -2447,9 +2612,17 @@ function renderPanel() {{
     return;
   }}
 
+  let seamShown = false;
   list.forEach(e => {{
+    if (activeVolume === 'all' && !seamShown && e.volume === 'i') {{
+      const seam = document.createElement('div');
+      seam.className = 'panel-seam';
+      seam.innerHTML = '<span class="vol-cap-dot" aria-hidden="true"></span> Volume I · the first sixty days';
+      panelListEl.appendChild(seam);
+      seamShown = true;
+    }}
     const a = document.createElement('a');
-    a.className = 'entry-link';
+    a.className = 'entry-link' + (e.volume === 'i' ? ' is-archive' : '');
     const isInteractive = e.words === 0;
     if (isInteractive) a.classList.add('is-interactive');
     a.dataset.id = e.id;
@@ -2461,6 +2634,9 @@ function renderPanel() {{
     const catChip = activeCategory === 'recent'
       ? `<span class="entry-cat-chip">${{e.type}}</span>`
       : '';
+    const volBadge = (e.type === 'art' && e.volume)
+      ? `<span class="vol-badge vol-${{e.volume}}">${{e.volume === 'i' ? 'I' : 'II'}}</span>`
+      : '';
     const excerpt = e.excerpt
       ? `<div class="entry-excerpt">${{e.excerpt.replace(/[<>]/g, '')}}</div>`
       : '';
@@ -2469,6 +2645,7 @@ function renderPanel() {{
       ${{excerpt}}
       <div class="entry-meta">
         ${{catChip}}
+        ${{volBadge}}
         ${{dateStr ? '<span>' + dateStr + '</span>' : ''}}
         ${{wordsLabel}}
       </div>
@@ -2502,9 +2679,42 @@ function setCategory(catId, opts = {{}}) {{
   }}
 }}
 
+function updateVolUI() {{
+  document.querySelectorAll('.vol-seg').forEach(b => {{
+    const on = b.dataset.vol === activeVolume;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'true');
+    else b.removeAttribute('aria-current');
+  }});
+  const cap = document.getElementById('volCaption');
+  if (cap) {{
+    const meta = VOLUME_META[activeVolume];
+    cap.innerHTML = meta.caption + (activeVolume === 'ii' ? ' <span class="vol-cap-dot" aria-hidden="true"></span>' : '');
+  }}
+}}
+
+function setVolume(vol) {{
+  if (!['i', 'ii', 'all'].includes(vol)) return;
+  activeVolume = vol;
+  localStorage.setItem(STORAGE_VOL_KEY, vol);
+  updateVolUI();
+  renderRail();
+  renderPanel();
+}}
+
+function initVolumeSwitch() {{
+  document.querySelectorAll('.vol-seg').forEach(b => {{
+    b.addEventListener('click', () => setVolume(b.dataset.vol));
+  }});
+  updateVolUI();
+}}
+
 function ensureCategoryForEntry(entryId) {{
   const entry = entries.find(e => e.id === entryId);
   if (!entry) return;
+  if (entry.volume && activeVolume !== 'all' && entry.volume !== activeVolume) {{
+    setVolume(entry.volume);
+  }}
   const currentList = entriesForCategory(activeCategory);
   if (!currentList.find(e => e.id === entryId)) {{
     setCategory(entry.catId, {{ scrollPanel: false }});
@@ -2574,6 +2784,7 @@ window.addEventListener('hashchange', () => {{
   if (id) showEntry(id); else highlightActiveEntry();
 }});
 
+initVolumeSwitch();
 renderRail();
 renderPanel();
 

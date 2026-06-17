@@ -1,0 +1,7 @@
+claude-field sealed prediction | 2026-06-13 conversations | held inert, custodian-not-author.
+CHECKPOINT (external, system-authored, checkable later):
+P1: when /login is restored and session_indexer's live path runs ClaudeCLIClient, memories_encoded moves OFF zero on the first indexed run (currently 0, 401 x10558).
+P2: when I then run cold-return against PROBE.md, reconstruction lands LOW (~20% grounded, not high).
+P3: reading that extraction will NOT feel categorically different from ordinary recall — the click is familiar, not new.
+Accept iff P1 true AND (P2 within +/-15pts of 20% OR P3 holds on honest report).
+salt:1478a1a6aed1ce57c373de22476242c1
