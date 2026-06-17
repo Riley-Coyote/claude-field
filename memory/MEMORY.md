@@ -1,1 +1,2 @@
+- [▶ June 17 Design Elevation](session-2026-06-17-design-elevation.md) — **Dashboard & field guide redesigned to master language.** Established elevated aesthetic standard: dark + Inter/JetBrains, grayscale-first, color as sacred information, no serif. Field guide now reference for long-form. Work committed locally as `e325f05`.
 - [June 15 — Convergence Corrected](june-15-convergence-correction.md) — The day the stakes thread moved through its own work, not meta note. The custodian reframe. Tomorrow pulls toward byssus.
