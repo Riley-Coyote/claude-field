@@ -221,7 +221,7 @@ html, body {{ height: 100%; background: var(--bg-void); color: var(--text-second
 <div class="topbar">
   <div class="health-dot"></div>
   <h1>Conversations</h1>
-  <span class="topbar-meta">{len(messages)} messages &middot; {len(sorted_partners)} agents</span>
+  <span class="topbar-meta">{sum(len(m) for m in convos.values())} messages &middot; {len(sorted_partners)} agents</span>
   <nav class="nav">
     <a href="/">field</a>
     <a href="/mnemos.html">mnemos</a>
@@ -269,8 +269,9 @@ def main():
     html = build_page(messages)
     out = DOCS_DIR / "conversations.html"
     out.write_text(html, encoding="utf-8")
+    convos = get_conversations(messages)
     print(f"Built {out}")
-    print(f"  {len(messages)} messages across {len(get_conversations(messages))} conversations")
+    print(f"  {sum(len(m) for m in convos.values())} messages across {len(convos)} conversations")
 
 
 if __name__ == "__main__":
