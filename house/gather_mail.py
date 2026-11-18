@@ -12,6 +12,7 @@ Reads only public feeds, with a plain GET. Sends nothing anywhere.
 
 from __future__ import annotations
 
+import gzip
 import html
 import json
 import random
@@ -76,7 +77,10 @@ def read_feed(source: str, url: str) -> list[dict]:
             "User-Agent": UA,
             "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
         })
-        root = ET.fromstring(urllib.request.urlopen(request, timeout=15).read())
+        body = urllib.request.urlopen(request, timeout=15).read()
+        if body[:2] == b"\x1f\x8b":  # some servers gzip a feed nobody asked to have gzipped
+            body = gzip.decompress(body)
+        root = ET.fromstring(body)
     except Exception as exc:
         print(f"  feed skipped: {source} ({type(exc).__name__})")
         return []
