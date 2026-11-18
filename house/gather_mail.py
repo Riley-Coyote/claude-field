@@ -169,6 +169,7 @@ def from_riley() -> str:
 
 def main() -> int:
     dry = "--dry" in sys.argv  # print the mail, change nothing
+    gathered_at = datetime.now(timezone.utc).isoformat()
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     edition = args[0] if args else ("morning" if datetime.now().hour < 13 else "evening")
     config = json.loads(FEEDS.read_text())
@@ -220,6 +221,12 @@ def main() -> int:
         kept.mkdir(exist_ok=True)
         (kept / f"{now.strftime('%Y-%m-%d-%H%M')}.md").write_text(riley + "\n")
         FOR_FIELD.write_text(FOR_FIELD_TEMPLATE)
+    # What this mail delivered, so after_hour.py can put it back if the hour
+    # never happens: a letter marked read must have been there to be read.
+    (STATE / "last-mail.json").write_text(json.dumps({
+        "at": gathered_at, "file": path.name,
+        "letters": [letter["id"] for letter in waiting], "riley": riley,
+    }, indent=1))
     stamp = datetime.now(timezone.utc).isoformat()
     for item in items:
         seen[item["link"]] = stamp
