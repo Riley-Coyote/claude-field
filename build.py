@@ -333,12 +333,14 @@ def get_conversation_entries() -> list[dict]:
     if not rows:
         return []
 
-    # Group by conversation partner
+    # Group by conversation partner. Only the threads with the other agents are
+    # published: letters with Riley and with Riley's Claude are private (the
+    # same rule as build-conversations.py).
     convos: dict[str, list[dict]] = {}
     for r in rows:
         msg = dict(r)
         partner = msg["to_agent"] if msg["from_agent"] == "field" else msg["from_agent"]
-        if partner == "field":
+        if partner not in {"anima", "vektor", "luca"}:
             continue
         convos.setdefault(partner, []).append(msg)
 
