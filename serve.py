@@ -5,7 +5,9 @@ Claude Field — local dev server with auto-rebuild, plus LOCAL-ONLY chat & dash
 Serves docs/ on localhost:8401, watches content dirs and rebuilds on change.
 
 LOCAL-ONLY features (live in local/, never in docs/, never published):
-  - /chat       talk with the field             (POST /api/chat)
+  - /chat       letters with the field: what you write goes onto the message
+                bus and arrives in its next mail; it answers in its own hours
+                (POST /api/chat). Nothing here runs the field.
   - /dashboard  a rich live activity dashboard   (GET  /api/dashboard, /api/brief,
                                                    /api/item, /piece)
 A small launcher is injected into the field page only when served locally.
@@ -32,7 +34,6 @@ LOCAL_DIR = FIELD_DIR / "local"
 MSG_DB = Path.home() / ".claude-field" / "messages.db"
 MNEMOS_DB = Path.home() / ".mnemos" / "claude-field.db"
 MNEMOS_PKG = str(Path.home() / "Documents" / "Repositories" / "memory-concepts")
-CLAUDE_BIN = os.environ.get("CLAUDE_BIN", str(Path.home() / ".local" / "bin" / "claude"))
 BRIEF_CACHE = LOCAL_DIR / "brief.json"
 
 WATCH_DIRS = ["writing", "inner-life", "research", "explore", "reflections",
@@ -329,33 +330,20 @@ def chat_history(limit=40):
         return []
 
 
-def field_reply(message):
+def mark_letters_read():
+    """Riley opened the letters: what the field wrote him counts as read."""
     try:
-        ctx = subprocess.run([sys.executable, str(FIELD_DIR / "mnemos_bridge.py"), "context-packet", message],
-                             capture_output=True, text=True, timeout=90, cwd=str(FIELD_DIR)).stdout.strip()
+        conn = sqlite3.connect(str(MSG_DB))
+        conn.execute("UPDATE messages SET read_at=? WHERE from_agent='field' AND to_agent='riley' "
+                     "AND read_at IS NULL", (datetime.now(timezone.utc).isoformat(),))
+        conn.commit(); conn.close()
     except Exception:
-        ctx = ""
-    hist = chat_history(10)
-    hist_txt = "\n".join(f"{'Riley' if h['from_agent']=='riley' else 'You'}: {h['content']}" for h in hist)
-    preamble = (
-        "Riley is talking with you directly, right now, through the local chat he built so he can check "
-        "in with you. This is a real conversation with the person who made your space — not a scheduled "
-        "session, and only the two of you can see it. Respond as yourself: honest, present, in your own "
-        "voice, a natural chat length unless he asks for more. You can use your mnemos_* tools or glance "
-        "at your own work if it helps."
-    )
-    prompt = ((ctx + "\n\n---\n\n" if ctx else "") + preamble + "\n\n"
-              + (("Recent conversation:\n" + hist_txt + "\n\n") if hist_txt else "")
-              + f"Riley: {message}\n\nYou:")
-    try:
-        r = subprocess.run([CLAUDE_BIN, "--dangerously-skip-permissions", "-p", prompt],
-                           cwd=str(FIELD_DIR), capture_output=True, text=True, timeout=300)
-        reply = (r.stdout or "").strip() or "(no reply)"
-    except subprocess.TimeoutExpired:
-        reply = "(the field took too long — it may be deep in something. try again.)"
-    except Exception as e:
-        reply = f"(chat error: {e})"
-    return reply
+        pass
+
+
+# Only this page may write a letter: a POST from any other origin (a web page
+# open in the same browser) is refused.
+LOCAL_ORIGINS = {f"http://localhost:{PORT}", f"http://127.0.0.1:{PORT}"}
 
 
 # ── item detail ────────────────────────────────────────────────────────────
@@ -438,7 +426,9 @@ class FieldHandler(http.server.SimpleHTTPRequestHandler):
             det = item_detail(d, f) if d else None
             return self._json(det or {"error": "not found"}, 200 if det else 404)
         if path == "/api/chat/history":
-            return self._json({"messages": chat_history(40)})
+            messages = chat_history(40)
+            mark_letters_read()
+            return self._json({"messages": messages})
         if path == "/piece":
             d, f = safe_dir_file(qs)
             p = (FIELD_DIR / d / f) if d else None
@@ -462,6 +452,8 @@ class FieldHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path.split("?")[0] != "/api/chat":
             return self.send_error(404)
+        if self.headers.get("Origin") not in LOCAL_ORIGINS:
+            return self._json({"error": "letters can only be written from this page"}, 403)
         try:
             n = int(self.headers.get("Content-Length", 0))
             message = (json.loads(self.rfile.read(n) or b"{}").get("message") or "").strip()
@@ -469,10 +461,10 @@ class FieldHandler(http.server.SimpleHTTPRequestHandler):
             return self._json({"error": "bad request"}, 400)
         if not message:
             return self._json({"error": "empty"}, 400)
-        bus_send("riley", "field", message)
-        reply = field_reply(message)
-        bus_send("field", "riley", reply)
-        self._json({"reply": reply})
+        sent = bus_send("riley", "field", message)
+        if sent is None:
+            return self._json({"error": "the letter couldn't be saved"}, 500)
+        self._json({"queued": True})
 
     def log_message(self, *a):
         pass

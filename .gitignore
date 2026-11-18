@@ -20,3 +20,14 @@ local/brief.json
 .env
 .env.local
 *.key
+
+# The field's own: never published, never staged
+private/
+mail/
+outbox/
+for-field.md
+letters-for-riley.md
+
+# The quiet-hours engine and the house's working state
+worktrees/
+house/state/

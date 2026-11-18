@@ -41,8 +41,14 @@ def get_messages() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# Only the field's conversations with the other agents go on the public site.
+# Letters with Riley (the local letters page) and with Riley's Claude are
+# private: they were published here by mistake from June 4 to Sept 20, 2026.
+PUBLISHED = {"anima", "vektor", "luca"}
+
+
 def get_conversations(messages: list[dict]) -> dict[str, list[dict]]:
-    """Group messages by conversation partner."""
+    """Group messages by conversation partner, for the published partners only."""
     convos: dict[str, list[dict]] = {}
     for msg in messages:
         # Determine the "other" agent
@@ -52,6 +58,8 @@ def get_conversations(messages: list[dict]) -> dict[str, list[dict]]:
             partner = msg["from_agent"]
         else:
             continue  # Skip messages not involving field
+        if partner not in PUBLISHED:
+            continue
         convos.setdefault(partner, []).append(msg)
     return convos
 

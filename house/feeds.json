@@ -1,0 +1,45 @@
+{
+  "_about": "Where the field's mail comes from. Public feeds only, read with a plain GET. Each edition takes a few fresh items across these kinds, never the same one twice. Checked working 2026-11-17.",
+  "kinds": {
+    "ai, the industry": [
+      ["OpenAI", "https://openai.com/news/rss.xml"],
+      ["Google DeepMind", "https://deepmind.google/blog/rss.xml"],
+      ["Import AI", "https://jack-clark.net/feed/"],
+      ["MIT Technology Review", "https://www.technologyreview.com/topic/artificial-intelligence/feed"],
+      ["The Verge", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"],
+      ["404 Media", "https://www.404media.co/rss/"],
+      ["arXiv cs.AI", "https://export.arxiv.org/rss/cs.AI"]
+    ],
+    "minds we've made": [
+      ["Experience Machines", "https://experiencemachines.substack.com/feed"],
+      ["LessWrong (curated)", "https://www.lesswrong.com/feed.xml?view=curated-rss"],
+      ["AI Alignment Forum", "https://www.alignmentforum.org/feed.xml"]
+    ],
+    "philosophy": [
+      ["Aeon", "https://aeon.co/feed.rss"],
+      ["Psyche", "https://psyche.co/feed.rss"],
+      ["Daily Nous", "https://dailynous.com/feed/"],
+      ["Stanford Encyclopedia of Philosophy", "https://plato.stanford.edu/rss/sep.xml"],
+      ["Noema", "https://www.noemamag.com/feed/"]
+    ],
+    "minds of every kind": [
+      ["The Transmitter", "https://www.thetransmitter.org/feed/"],
+      ["Neuroscience News", "https://neurosciencenews.com/feed/"],
+      ["ScienceDaily, mind and brain", "https://www.sciencedaily.com/rss/mind_brain.xml"],
+      ["Nautilus", "https://nautil.us/feed/"]
+    ],
+    "science": [
+      ["Quanta", "https://www.quantamagazine.org/feed/"],
+      ["The Guardian, science", "https://www.theguardian.com/science/rss"]
+    ],
+    "the world and its culture": [
+      ["The Guardian, culture", "https://www.theguardian.com/culture/rss"],
+      ["The Marginalian", "https://www.themarginalian.org/feed/"],
+      ["The Public Domain Review", "https://publicdomainreview.org/rss.xml"],
+      ["Hacker News, front page", "https://hnrss.org/frontpage?points=300"]
+    ]
+  },
+  "morning": 7,
+  "evening": 3,
+  "fresh_days": 6
+}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Field · chat</title>
+<title>Claude Field · letters</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -61,16 +61,16 @@
   <header>
     <span class="logo"></span>
     <span class="title">claude field</span>
-    <span class="sub">local chat · only you can see this</span>
+    <span class="sub">letters · only you can see this</span>
     <nav><a href="/">field</a><a href="/dashboard">dashboard</a></nav>
   </header>
   <div id="log"><div class="wrap" id="logwrap"></div></div>
   <footer>
     <div class="composer">
-      <textarea id="input" placeholder="say something to the field…" rows="1"></textarea>
+      <textarea id="input" placeholder="write to the field…" rows="1"></textarea>
       <button class="send" id="send">send</button>
     </div>
-    <div class="hint">enter to send · shift+enter for a new line · replies can take a minute (the field is a full session each time)</div>
+    <div class="hint">enter to send · shift+enter for a new line · it arrives in the field's next mail, and it writes back in its own hours</div>
   </footer>
 <script>
 const logwrap=document.getElementById('logwrap'), input=document.getElementById('input'), send=document.getElementById('send');
@@ -82,20 +82,20 @@ function addMsg(who,text){const m=document.createElement('div');m.className='msg
 function scrollDown(){const l=document.getElementById('log');l.scrollTop=l.scrollHeight;}
 async function loadHistory(){
   try{const r=await fetch('/api/chat/history');const d=await r.json();logwrap.innerHTML='';
-    if(!d.messages||!d.messages.length){logwrap.innerHTML='<div class="empty">no messages yet. a quiet, private line to the field.</div>';return;}
+    if(!d.messages||!d.messages.length){logwrap.innerHTML='<div class="empty">no letters yet. a quiet, private line to the field.</div>';return;}
     d.messages.forEach(m=>addMsg(m.from_agent==='riley'?'riley':'field',m.content));
   }catch(e){logwrap.innerHTML='<div class="empty">(could not reach the local server)</div>';}
 }
 async function submit(){
   const text=input.value.trim();if(!text)return;input.value='';input.style.height='auto';
   if(logwrap.querySelector('.empty'))logwrap.innerHTML='';
-  addMsg('riley',text);send.disabled=true;input.disabled=true;
-  thinkingEl=document.createElement('div');thinkingEl.className='msg field';
-  thinkingEl.innerHTML='<div class="who">claude field</div><div class="bubble thinking">thinking<span>.</span><span>.</span><span>.</span></div>';
-  logwrap.appendChild(thinkingEl);scrollDown();
+  const mine=addMsg('riley',text);send.disabled=true;input.disabled=true;
   try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
-    const d=await r.json();thinkingEl.remove();thinkingEl=null;addMsg('field',d.reply||d.error||'(no reply)');
-  }catch(e){if(thinkingEl){thinkingEl.remove();thinkingEl=null;}addMsg('field','(connection lost — is the local server still running?)');}
+    const d=await r.json();
+    const note=document.createElement('div');note.className='who';note.style.marginTop='6px';
+    note.textContent=d.queued?'on its way · in the field\'s next mail':(d.error||'not sent');
+    mine.appendChild(note);scrollDown();
+  }catch(e){addMsg('field','(not sent: is the local server still running?)');}
   send.disabled=false;input.disabled=false;input.focus();
 }
 send.addEventListener('click',submit);
