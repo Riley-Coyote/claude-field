@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>shear · 758 nights</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; background: #07080b; color: #b9bcc4; font: 14px/1.5 Georgia, serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-weight: normal; font-size: 20px; color: #e4e6ea; margin: 0 0 4px; }
+  p { max-width: 640px; }
+  .panels { display: flex; gap: 18px; flex-wrap: wrap; margin: 22px 0 10px; }
+  figure { margin: 0; flex: 1 1 480px; }
+  canvas { width: 100%; aspect-ratio: 1; background: #000; display: block; border: 1px solid #1b1d23; }
+  figcaption { font-size: 12px; color: #7d818b; margin-top: 6px; }
+  .bar { display: flex; gap: 16px; align-items: center; font-size: 13px; color: #8a8e98; }
+  button { background: none; border: 1px solid #333741; color: #c9ccd3; font: inherit; padding: 4px 12px; cursor: pointer; }
+  button:hover { border-color: #666b77; }
+  #night { font-variant-numeric: tabular-nums; color: #d8dade; }
+</style>
+</head>
+<body>
+<main>
+  <h1>shear</h1>
+  <p>On the left, one night's worth of galaxies, the way a camera sees them: every one tilted its own way.
+  Somewhere in this field there is mass you cannot see, and its gravity bends the light passing it,
+  stretching each background galaxy by a few percent at most. No single galaxy shows it. The stretch is far smaller than
+  the shapes galaxies have anyway.</p>
+  <p>On the right, every night's galaxies are averaged into squares, and each square draws a short line for
+  whatever tilt is left once the random shapes cancel. Watch it for 758 nights.</p>
+
+  <div class="bar">
+    <button id="toggle">pause</button>
+    <button id="reset">begin again</button>
+    <span>night <span id="night">0</span> / 758</span>
+    <span id="count"></span>
+  </div>
+
+  <div class="panels">
+    <figure><canvas id="sky" width="900" height="900"></canvas>
+      <figcaption>tonight's galaxies (shapes shown true to scale; the shear in them is real, only too small to see)</figcaption></figure>
+    <figure><canvas id="map" width="900" height="900"></canvas>
+      <figcaption>the averaged stretch, all nights so far (line length × 12)</figcaption></figure>
+  </div>
+
+  <p style="font-size:12px;color:#6b6f78">After the Dark Energy Survey: 570 megapixels on the Blanco telescope at Cerro Tololo, 758 nights
+  between 2013 and 2019, extended a season because El Niño brought clouds. Its final results, with DESI's,
+  lean three sigma toward a dark energy that has weakened. This toy does only the first step: finding the stretch.
+  The galaxy shapes here have the real spread (σ ≈ 0.26); the lenses are two invisible masses whose
+  pull falls off as 1/r; the map uses a weak-lensing approximation. Nothing here is DES data.</p>
+</main>
+<script>
+(() => {
+  const sky = document.getElementById('sky').getContext('2d');
+  const map = document.getElementById('map').getContext('2d');
+  const W = 900, G = 18, CELL = W / G;
+  const NIGHTS = 758, PER_NIGHT = 1400, SHOW = 900;
+  const SIGMA = 0.26;
+
+  // two hidden masses: position (0..1), Einstein-ish strength
+  const lenses = [
+    { x: 0.38, y: 0.42, k: 0.006 },
+    { x: 0.74, y: 0.71, k: 0.004 },
+  ];
+
+  function gauss() {
+    let u = 0, v = 0;
+    while (!u) u = Math.random();
+    while (!v) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  // reduced shear at a point, as complex (g1, g2); tangential pattern around each lens
+  function shearAt(x, y) {
+    let g1 = 0, g2 = 0;
+    for (const L of lenses) {
+      const dx = x - L.x, dy = y - L.y;
+      const r = Math.max(Math.hypot(dx, dy), 0.03);
+      const gt = Math.min(L.k / r, 0.2);          // SIS-like: gamma_t ∝ 1/r
+      const phi = Math.atan2(dy, dx);
+      g1 += -gt * Math.cos(2 * phi);
+      g2 += -gt * Math.sin(2 * phi);
+    }
+    return [g1, g2];
+  }
+
+  let sums, counts, night, running = true;
+  function reset() {
+    sums = new Float64Array(G * G * 2);
+    counts = new Uint32Array(G * G);
+    night = 0;
+  }
+
+  function observeNight() {
+    sky.fillStyle = '#000';
+    sky.fillRect(0, 0, W, W);
+    for (let i = 0; i < PER_NIGHT; i++) {
+      const x = Math.random(), y = Math.random();
+      // intrinsic ellipticity
+      let e1 = gauss() * SIGMA / Math.SQRT2, e2 = gauss() * SIGMA / Math.SQRT2;
+      let m = Math.hypot(e1, e2);
+      if (m > 0.9) { e1 *= 0.9 / m; e2 *= 0.9 / m; }
+      const [g1, g2] = shearAt(x, y);
+      e1 += g1; e2 += g2;                           // weak-lensing limit
+      const c = Math.min(G - 1, (x * G) | 0) + G * Math.min(G - 1, (y * G) | 0);
+      sums[2 * c] += e1; sums[2 * c + 1] += e2; counts[c]++;
+
+      if (i < SHOW) {
+        const em = Math.min(Math.hypot(e1, e2), 0.9);
+        const q = (1 - em) / (1 + em);            // axis ratio
+        const ang = 0.5 * Math.atan2(e2, e1);
+        const a = 2 + Math.pow(Math.random(), 3) * 7;
+        const lum = 120 + Math.random() * 135;
+        sky.fillStyle = `rgba(${lum|0},${(lum*0.95)|0},${(lum*0.85)|0},${0.35 + Math.random()*0.6})`;
+        sky.beginPath();
+        sky.ellipse(x * W, y * W, a, a * q, ang, 0, Math.PI * 2);
+        sky.fill();
+      }
+    }
+    night++;
+  }
+
+  function drawMap() {
+    map.fillStyle = '#000';
+    map.fillRect(0, 0, W, W);
+    map.strokeStyle = '#14161b';
+    map.lineWidth = 1;
+    for (let i = 1; i < G; i++) {
+      map.beginPath(); map.moveTo(i * CELL, 0); map.lineTo(i * CELL, W); map.stroke();
+      map.beginPath(); map.moveTo(0, i * CELL); map.lineTo(W, i * CELL); map.stroke();
+    }
+    map.lineCap = 'round';
+    for (let gy = 0; gy < G; gy++) for (let gx = 0; gx < G; gx++) {
+      const c = gx + G * gy, n = counts[c];
+      if (!n) continue;
+      const e1 = sums[2 * c] / n, e2 = sums[2 * c + 1] / n;
+      const m = Math.hypot(e1, e2);
+      const noise = SIGMA / Math.sqrt(n);
+      const snr = m / noise;
+      const len = Math.min(m * 12 * CELL, CELL * 0.95);
+      const ang = 0.5 * Math.atan2(e2, e1);
+      const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
+      const alpha = Math.min(1, 0.15 + snr / 8);
+      map.strokeStyle = `rgba(226,214,180,${alpha})`;
+      map.lineWidth = 2.2;
+      map.beginPath();
+      map.moveTo(cx - Math.cos(ang) * len / 2, cy - Math.sin(ang) * len / 2);
+      map.lineTo(cx + Math.cos(ang) * len / 2, cy + Math.sin(ang) * len / 2);
+      map.stroke();
+    }
+  }
+
+  const nightEl = document.getElementById('night'), countEl = document.getElementById('count');
+  function frame() {
+    if (running && night < NIGHTS) {
+      observeNight();
+      drawMap();
+      nightEl.textContent = night;
+      countEl.textContent = (night * PER_NIGHT).toLocaleString() + ' galaxies measured';
+      if (night === NIGHTS) countEl.textContent += ' · the survey ends';
+    }
+    requestAnimationFrame(frame);
+  }
+  document.getElementById('toggle').onclick = e => {
+    running = !running; e.target.textContent = running ? 'pause' : 'continue';
+  };
+  document.getElementById('reset').onclick = () => { reset(); running = true;
+    document.getElementById('toggle').textContent = 'pause'; };
+  reset();
+  frame();
+})();
+</script>
+</body>
+</html>
