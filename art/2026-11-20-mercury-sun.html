@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>the sun from Mercury, one day</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html,body{margin:0;background:#07070a;color:#bdb6a8;font:14px/1.5 Georgia,serif}
+  main{max-width:900px;margin:0 auto;padding:24px}
+  h1{font-weight:normal;font-size:20px;color:#e8dcc4;margin:0 0 4px}
+  p{margin:6px 0 14px;max-width:680px}
+  canvas{display:block;width:100%;background:#000;border:1px solid #1c1c22}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0}
+  button{background:#14141a;color:#d8cfbd;border:1px solid #333;padding:5px 10px;font:inherit;cursor:pointer}
+  button.on{border-color:#c9a25a;color:#f0d9a8}
+  #readout{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#8f8878}
+  input[type=range]{width:220px}
+</style>
+</head>
+<body>
+<main>
+<h1>the sun from Mercury, one day</h1>
+<p>Mercury turns three times for every two trips around the sun, so a day there, from noon to noon, lasts 176 Earth days, which is two of its years. Its orbit is eccentric. For about four Earth days on each side of perihelion it moves around the sun faster than it spins, and the sun in its sky stops and goes back a little. The orbit is solved from Kepler's equation every frame (e = 0.2056, year 87.969 d, spin 58.646 d), and the sun's disk is drawn at its true angular size for that distance.</p>
+
+<div class="row">
+  <button id="b0" class="on">stand at 0° longitude (the hot pole)</button>
+  <button id="b90">stand at 90° longitude (a warm pole)</button>
+</div>
+<canvas id="sky" width="1600" height="700"></canvas>
+<div class="row">
+  <button id="play">pause</button>
+  <label>speed <input id="speed" type="range" min="0.2" max="20" step="0.1" value="4"></label>
+  <span id="readout"></span>
+</div>
+<canvas id="strip" width="1600" height="260"></canvas>
+<p style="font-size:12px;color:#6f6a60">Lower panel: the sun's hour angle across one full Mercury day for the chosen longitude, with the line flattened so the stall shows. The marks are perihelia. At the hot pole the stall comes at noon, overhead, and at its hottest. At 90° it comes at the horizon, at sunset in one Mercury year and at sunrise in the next. At sunrise, about four-fifths of the sun's disk clears the horizon, it sinks back until only a sliver shows, and then it rises for good, all over about eight Earth days. Mercury's axial tilt (about 0.03°) and the slow turn of its orbit are left out. The observer stands on the equator.</p>
+</main>
+<script>
+const e=0.205630, P=87.9691, S=58.6462, A=0.387098;
+const SOLAR=1/(1/S-1/P);            // ≈175.94 d
+const SUN_EARTH_DEG=0.5332;          // sun's angular diameter at 1 AU
+const D2R=Math.PI/180;
+function kepler(t){const M=2*Math.PI*t/P;let E=M;for(let i=0;i<40;i++)E-=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));return E;}
+function nu(t){const E=kepler(t);return 2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));}
+function dist(t){return A*(1-e*Math.cos(kepler(t)));}
+// continuous hour angle in degrees; t in days from a perihelion
+function hourAngle(t,L){return (2*Math.PI*t/S-nu(t))/D2R+L;}
+// wrap to (-180,180]
+function wrap(h){h=((h+180)%360+360)%360-180;return h;}
+
+let L=0, t=-SOLAR/2+0.001, playing=true;
+const sky=document.getElementById('sky'), g=sky.getContext('2d');
+const strip=document.getElementById('strip'), s=strip.getContext('2d');
+const W=sky.width, Hh=sky.height;
+
+// fixed stars: random, but fixed to the sky (they turn with the spin, not the sun)
+const stars=[];{let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  for(let i=0;i<6000;i++)stars.push({ra:rnd()*360,dec:(Math.asin(2*rnd()-1)/D2R),m:rnd()});}
+
+function setL(v){L=v;document.getElementById('b0').classList.toggle('on',v===0);document.getElementById('b90').classList.toggle('on',v===90);drawStrip();}
+document.getElementById('b0').onclick=()=>setL(0);
+document.getElementById('b90').onclick=()=>setL(90);
+document.getElementById('play').onclick=e2=>{playing=!playing;e2.target.textContent=playing?'pause':'play';};
+
+// Projection. At 0°, a side view of the dome: the sun and stars move along arcs
+// from the east horizon, over the zenith, to the west. At 90°, a close view of whichever
+// horizon the sun is near, 8° across, at true scale, so that a 1° stall shows.
+function drawSky(){
+  const H=hourAngle(t,L), Hw=wrap(H), alt=90-Math.abs(Hw);
+  const d=dist(t), diam=SUN_EARTH_DEG/d; // degrees
+  g.fillStyle='#000';g.fillRect(0,0,W,Hh);   // no air: the sky stays black at noon
+  const spin=(2*Math.PI*t/S)/D2R+L;
+  let horizonY;
+  if(L===0){
+    horizonY=Hh-70; const R=Math.min(W/2-40,horizonY-30);
+    for(const st of stars){
+      if(Math.abs(st.dec)>70)continue;
+      const h=wrap(spin-st.ra); if(Math.abs(h)>90)continue;
+      const Rs=R*(1-st.dec/150);
+      const x=W/2+Rs*Math.sin(h*D2R), y=horizonY-Rs*Math.cos(h*D2R);
+      g.fillStyle=`rgba(220,215,200,${0.12+0.45*st.m})`;g.fillRect(x,y,1.6,1.6);
+    }
+    g.strokeStyle='#15151b';g.beginPath();g.arc(W/2,horizonY,R,Math.PI,2*Math.PI);g.stroke();
+    if(Math.abs(Hw)<=92){
+      const sx=W/2+R*Math.sin(Hw*D2R), sy=horizonY-R*Math.cos(Hw*D2R);
+      sun(sx,sy,Math.max(R*diam*D2R/2,2));
+    }
+    ground(horizonY);
+    g.fillStyle='#6f6656';g.font='22px Georgia';
+    g.fillText('east',20,horizonY+36);g.fillText('west',W-70,horizonY+36);g.fillText('zenith',W/2-30,horizonY-R-8);
+  } else {
+    horizonY=Hh*0.62; const ppd=W/8;
+    const east=Hw<0;
+    for(const st of stars){
+      if(Math.abs(st.dec)>4.5)continue;
+      const h=wrap(spin-st.ra); if(east?h>0:h<0)continue;
+      const a=90-Math.abs(h); if(a>4||a<0)continue;
+      const x=W/2+(east?1:-1)*st.dec*ppd, y=horizonY-a*ppd;
+      g.fillStyle=`rgba(220,215,200,${0.15+0.5*st.m})`;g.fillRect(x,y,2,2);
+    }
+    if(alt>-2) sun(W/2,horizonY-alt*ppd,diam*ppd/2);
+    ground(horizonY);
+    g.fillStyle='#6f6656';g.font='22px Georgia';
+    g.fillText((east?'eastern':'western')+' horizon, 8° across, true scale',20,horizonY+40);
+  }
+  const day=((t+SOLAR/2)%SOLAR+SOLAR)%SOLAR;
+  const rate=(hourAngle(t+0.05,L)-hourAngle(t-0.05,L))/0.1; // deg per Earth day
+  document.getElementById('readout').textContent=
+    `Earth day ${day.toFixed(1)} of ${SOLAR.toFixed(1)}  ·  ${d.toFixed(3)} AU  ·  sun ${(diam/SUN_EARTH_DEG).toFixed(2)}× as wide as from Earth  ·  `+
+    (Math.abs(Hw)<=90?`altitude ${alt.toFixed(2)}°`:'below the horizon')+
+    `  ·  ${rate>=0?'moving west':'moving EAST'} ${Math.abs(rate).toFixed(2)}°/day`;
+}
+function sun(x,y,r){
+  const gr=g.createRadialGradient(x,y,0,x,y,r*5);
+  gr.addColorStop(0,'rgba(255,240,210,0.3)');gr.addColorStop(1,'rgba(255,240,210,0)');
+  g.fillStyle=gr;g.beginPath();g.arc(x,y,r*5,0,7);g.fill();
+  g.fillStyle='#fff6e2';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+}
+function ground(y){
+  g.fillStyle='#1a1714';g.fillRect(0,y,W,Hh-y);
+  g.strokeStyle='#3a332b';g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();
+}
+function drawStrip(){
+  const w=strip.width,h=strip.height;
+  s.fillStyle='#000';s.fillRect(0,0,w,h);
+  // plot H - mean motion (removes the steady drift so the stall shows), across one solar day
+  const t0=-SOLAR/2, mean=360/SOLAR;
+  let pts=[],min=1e9,max=-1e9;
+  for(let i=0;i<=w;i++){const tt=t0+SOLAR*i/w;const y=hourAngle(tt,L)-mean*(tt);pts.push(y);min=Math.min(min,y);max=Math.max(max,y);}
+  s.strokeStyle='#c9a25a';s.lineWidth=2;s.beginPath();
+  pts.forEach((y,i)=>{const Y=h-20-(y-min)/(max-min)*(h-40);i?s.lineTo(i,Y):s.moveTo(i,Y);});s.stroke();
+  // perihelion marks
+  s.fillStyle='#6f6656';s.font='18px Georgia';
+  for(const tp of [-P, 0, P]){const x=(tp-t0)/SOLAR*w;if(x<0||x>w)continue;s.fillRect(x,0,1,h);s.fillText('perihelion',x+4,18);}
+  strip.dataset.min=min;strip.dataset.max=max;
+}
+function drawCursor(){
+  drawStrip();
+  const day=((t+SOLAR/2)%SOLAR+SOLAR)%SOLAR;
+  const x=day/SOLAR*strip.width;
+  s.fillStyle='#fff6e2';s.fillRect(x-1,0,2,strip.height);
+}
+let last=performance.now();
+function frame(now){
+  const dt=(now-last)/1000;last=now;
+  const sp=+document.getElementById('speed').value;
+  // slow down near perihelion so the stall can be seen
+  const near=Math.abs(wrap((t/P)*360))<25;
+  if(playing)t+=dt*sp*(near?0.35:1);
+  if(t>SOLAR/2)t-=SOLAR;
+  drawSky();drawCursor();
+  requestAnimationFrame(frame);
+}
+drawStrip();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
